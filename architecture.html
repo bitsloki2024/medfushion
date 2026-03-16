@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>CosmoSentinel — Architecture</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #020d1a;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #c8dff0;
+  padding: 48px 48px 64px;
+  min-width: 1200px;
+}
+
+/* ── Header ── */
+h1 {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 300;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: #60b8d8;
+  margin-bottom: 4px;
+}
+.subtitle {
+  text-align: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #1e4060;
+  margin-bottom: 48px;
+}
+
+/* ── Section labels ── */
+.section-label {
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ── Divider title ── */
+.divider {
+  text-align: center;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #1a3a52;
+  margin: 36px 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #0a3050, transparent);
+}
+
+/* ── Layers ── */
+.layer {
+  border-radius: 10px;
+  padding: 18px 20px 20px;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+/* EXTERNAL */
+.layer-ext {
+  background: rgba(120,40,200,0.07);
+  border: 1px solid rgba(120,40,200,0.2);
+}
+.layer-ext .section-label { color: #9060d0; background: rgba(120,40,200,0.12); }
+
+/* DATA SOURCES */
+.layer-ds {
+  background: rgba(0,120,200,0.07);
+  border: 1px solid rgba(0,120,200,0.2);
+}
+.layer-ds .section-label { color: #40a0e0; background: rgba(0,120,200,0.12); }
+
+/* BACKEND CORE */
+.layer-be {
+  background: rgba(0,160,100,0.07);
+  border: 1px solid rgba(0,160,100,0.2);
+}
+.layer-be .section-label { color: #30c080; background: rgba(0,160,100,0.12); }
+
+/* ML */
+.layer-ml {
+  background: rgba(220,140,0,0.07);
+  border: 1px solid rgba(220,140,0,0.2);
+}
+.layer-ml .section-label { color: #e0a030; background: rgba(220,140,0,0.12); }
+
+/* FRONTEND */
+.layer-fe {
+  background: rgba(0,140,220,0.07);
+  border: 1px solid rgba(0,140,220,0.2);
+}
+.layer-fe .section-label { color: #30b8f0; background: rgba(0,140,220,0.12); }
+
+/* CACHE */
+.layer-cache {
+  background: rgba(60,80,200,0.07);
+  border: 1px solid rgba(60,80,200,0.2);
+}
+.layer-cache .section-label { color: #7080e0; background: rgba(60,80,200,0.12); }
+
+/* ── Card grids ── */
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.card {
+  background: rgba(0,10,28,0.7);
+  border-radius: 7px;
+  padding: 11px 14px;
+  min-width: 140px;
+  flex: 1;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.card-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #a0cce0;
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+}
+.card-sub {
+  font-size: 0.6rem;
+  color: #3a6070;
+  line-height: 1.5;
+}
+.card-tag {
+  display: inline-block;
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 6px;
+}
+.tag-free   { background: rgba(0,180,100,0.15); color: #30c070; }
+.tag-rss    { background: rgba(220,120,0,0.15); color: #e09030; }
+.tag-csv    { background: rgba(100,80,200,0.15); color: #9080e0; }
+.tag-ml     { background: rgba(220,60,60,0.15); color: #e07070; }
+.tag-cache  { background: rgba(60,100,220,0.15); color: #6090e0; }
+.tag-ui     { background: rgba(0,140,220,0.15); color: #30b0f0; }
+
+/* ── Arrow ── */
+.arrow-down {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 28px;
+  color: #0a3a5a;
+  font-size: 1.2rem;
+  position: relative;
+}
+.arrow-down::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, rgba(0,120,200,0.15), rgba(0,120,200,0.4));
+  transform: translateX(-50%);
+}
+.arrow-label {
+  background: #020d1a;
+  padding: 0 8px;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a5070;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Two column layout ── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ── Data pipeline ── */
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.pipe-step {
+  flex: 1;
+  background: rgba(0,10,28,0.7);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 14px 16px;
+  min-width: 130px;
+  position: relative;
+}
+.pipe-step::after {
+  content: '→';
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #1a5070;
+  font-size: 1rem;
+  z-index: 2;
+  width: 36px;
+  text-align: center;
+}
+.pipe-step:last-child::after { display: none; }
+.pipe-num {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #1a4060;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.pipe-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #80c0e0;
+  margin-bottom: 4px;
+}
+.pipe-desc {
+  font-size: 0.58rem;
+  color: #3a6070;
+  line-height: 1.5;
+}
+.pipe-gap { width: 36px; flex-shrink: 0; }
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 40px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.6rem;
+  color: #4a7080;
+  letter-spacing: 0.08em;
+}
+.ldot { width: 8px; height: 8px; border-radius: 50%; }
+
+footer {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+  color: #0e2535;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+
+<h1>✦ CosmoSentinel</h1>
+<p class="subtitle">System Architecture &amp; Data Pipeline · Real-Data Disease Surveillance Platform</p>
+
+<!-- ════════════════════════════════════════════════════
+     SECTION 1 · SYSTEM ARCHITECTURE (top-down layers)
+     ════════════════════════════════════════════════════ -->
+
+<div class="divider"><span>① System Architecture</span></div>
+
+<!-- LAYER 1 — USER -->
+<div style="text-align:center; margin-bottom:6px;">
+  <div style="display:inline-block; background:rgba(0,140,220,0.1); border:1px solid rgba(0,140,220,0.25); border-radius:8px; padding:8px 28px;">
+    <div style="font-size:0.65rem; font-weight:600; color:#30b8f0; letter-spacing:0.1em;">🌐 BROWSER — localhost:3001</div>
+    <div style="font-size:0.58rem; color:#1e5070; margin-top:2px;">User opens one tab · Frontend served by Next.js</div>
+  </div>
+</div>
+<div class="arrow-down"><span class="arrow-label">HTTP · Port 3001</span></div>
+
+<!-- LAYER 2 — FRONTEND -->
+<div class="layer layer-fe" style="margin-bottom:6px;">
+  <div class="section-label">🖥️ &nbsp;Frontend &nbsp;·&nbsp; Next.js 14 &nbsp;·&nbsp; TypeScript &nbsp;·&nbsp; Tailwind CSS</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-title">page.tsx</div>
+      <div class="card-sub">Main orchestrator<br>Disease & region selector<br>Heatmap mode · Dropdown<br>State management</div>
+      <span class="card-tag tag-ui">Core</span>
+    </div>
+    <div class="card">
+      <div class="card-title">GlobeView.tsx</div>
+      <div class="card-sub">react-globe.gl · Three.js<br>GeoJSON country polygons<br>Heatmap + polygon click<br>Starfield · Lighting</div>
+      <span class="card-tag tag-ui">3D Globe</span>
+    </div>
+    <div class="card">
+      <div class="card-title">CountryPanel.tsx</div>
+      <div class="card-sub">Surveillance tab<br>Classification (ICD-10/11)<br>Genomics · Gene Network<br>Therapeutics · Drug list<br>Intervene + Spread sim</div>
+      <span class="card-tag tag-ui">Dashboard</span>
+    </div>
+    <div class="card">
+      <div class="card-title">disease-data.ts</div>
+      <div class="card-sub">Fallback mock data<br>Used only when<br>backend is offline</div>
+      <span class="card-tag tag-cache">Fallback</span>
+    </div>
+  </div>
+</div>
+<div class="arrow-down"><span class="arrow-label">fetch /api/v1/ · Port 8000 · JSON</span></div>
+
+<!-- LAYER 3 — FASTAPI ROUTES -->
+<div class="layer layer-be" style="margin-bottom:6px;">
+  <div class="section-label">⚙️ &nbsp;Backend Core &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; Python 3.13 &nbsp;·&nbsp; main.py (routes only)</div>
+  <div class="cards">
+    <div class="card" style="max-width:180px; flex:none;">
+      <div class="card-title">/health</div>
+      <div class="card-sub">Status of all 9 data sources</div>
+    </div>
+    <div class="card" style="max-width:220px; flex:none;">
+      <div class="card-title">/api/v1/globe/heatmap</div>
+      <div class="card-sub">?disease=covid|malaria|tb|dengue|flu<br>Returns lat/lng/cases/risk per country</div>
+    </div>
+    <div class="card" style="max-width:200px; flex:none;">
+      <div class="card-title">/api/v1/country/stats</div>
+      <div class="card-sub">Trend data + anomaly flags<br>Risk score for selected country</div>
+    </div>
+    <div class="card" style="max-width:180px; flex:none;">
+      <div class="card-title">/api/v1/forecast</div>
+      <div class="card-sub">Prophet or LinearRegression<br>5-year case projection</div>
+    </div>
+    <div class="card" style="max-width:160px; flex:none;">
+      <div class="card-title">/api/v1/alerts</div>
+      <div class="card-sub">CDC MMWR + HealthMap<br>Real outbreak alerts</div>
+    </div>
+    <div class="card" style="max-width:180px; flex:none;">
+      <div class="card-title">/api/v1/risk/score</div>
+      <div class="card-sub">Composite 0–100 score<br>KMeans classification</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 4 — ML + DATA SOURCES (side by side) -->
+<div class="arrow-down"><span class="arrow-label">imports from modules</span></div>
+<div class="two-col" style="margin-bottom:6px;">
+
+  <!-- ML -->
+  <div class="layer layer-ml" style="margin-bottom:0;">
+    <div class="section-label">🤖 &nbsp;ML Layer &nbsp;·&nbsp; ml/</div>
+    <div class="cards" style="flex-direction:column;">
+      <div class="card">
+        <div class="card-title">anomaly.py</div>
+        <div class="card-sub">IsolationForest · contamination=0.15<br>Detects case spikes / drops</div>
+        <span class="card-tag tag-ml">sklearn</span>
+      </div>
+      <div class="card">
+        <div class="card-title">forecast.py</div>
+        <div class="card-sub">Prophet (primary) · 5-year projection<br>LinearRegression fallback</div>
+        <span class="card-tag tag-ml">Prophet</span>
+      </div>
+      <div class="card">
+        <div class="card-title">risk.py</div>
+        <div class="card-sub">Composite score: prevalence + growth + burden<br>KMeans k=3 → LOW / MED / HIGH</div>
+        <span class="card-tag tag-ml">KMeans</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATA SOURCES -->
+  <div class="layer layer-ds" style="margin-bottom:0;">
+    <div class="section-label">📡 &nbsp;Data Sources &nbsp;·&nbsp; data_sources/</div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">disease_sh.py</div>
+        <div class="card-sub">COVID-19 · Flu<br>200+ countries · live</div>
+        <span class="card-tag tag-free">REST · No key</span>
+      </div>
+      <div class="card">
+        <div class="card-title">who_gho.py</div>
+        <div class="card-sub">Malaria · TB · Dengue<br>Historical 2010–2024</div>
+        <span class="card-tag tag-free">OData · No key</span>
+      </div>
+      <div class="card">
+        <div class="card-title">cdc.py</div>
+        <div class="card-sub">US COVID deaths<br>ILI weekly data</div>
+        <span class="card-tag tag-free">Socrata · No key</span>
+      </div>
+      <div class="card">
+        <div class="card-title">ecdc.py</div>
+        <div class="card-sub">Europe COVID · Flu<br>EU/EEA countries</div>
+        <span class="card-tag tag-csv">CSV download</span>
+      </div>
+      <div class="card">
+        <div class="card-title">fluview.py</div>
+        <div class="card-sub">US weekly ILI %<br>CDC FluView</div>
+        <span class="card-tag tag-rss">RSS + Socrata</span>
+      </div>
+      <div class="card">
+        <div class="card-title">promed.py</div>
+        <div class="card-sub">2000+ outbreak alerts<br>CDC MMWR reports</div>
+        <span class="card-tag tag-rss">RSS feed</span>
+      </div>
+      <div class="card">
+        <div class="card-title">ihme.py</div>
+        <div class="card-sub">India GBD estimates<br>Malaria · TB · Dengue</div>
+        <span class="card-tag tag-csv">CSV · 2010–2023</span>
+      </div>
+      <div class="card">
+        <div class="card-title">healthmap.py</div>
+        <div class="card-sub">Global outbreak alerts<br>Geolocated events</div>
+        <span class="card-tag tag-free">JSON API</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 5 — CACHE -->
+<div class="arrow-down"><span class="arrow-label">write / read · JSON + CSV · TTL-based</span></div>
+<div class="layer layer-cache" style="margin-bottom:6px;">
+  <div class="section-label">💾 &nbsp;Cache Layer &nbsp;·&nbsp; cache/ &nbsp;·&nbsp; File-based · Survives restarts</div>
+  <div class="cards">
+    <div class="card"><div class="card-title">disease_sh.json</div><div class="card-sub">TTL: 1 hour</div><span class="card-tag tag-cache">COVID · Flu</span></div>
+    <div class="card"><div class="card-title">who_gho.json</div><div class="card-sub">TTL: 24 hours</div><span class="card-tag tag-cache">Malaria · TB · Dengue</span></div>
+    <div class="card"><div class="card-title">ecdc.json</div><div class="card-sub">TTL: 24 hours</div><span class="card-tag tag-cache">Europe</span></div>
+    <div class="card"><div class="card-title">promed.json</div><div class="card-sub">TTL: 1 hour</div><span class="card-tag tag-cache">Alerts</span></div>
+    <div class="card"><div class="card-title">ihme_india.csv</div><div class="card-sub">Static · Manual</div><span class="card-tag tag-cache">India GBD</span></div>
+  </div>
+</div>
+
+<!-- LAYER 6 — EXTERNAL -->
+<div class="arrow-down"><span class="arrow-label">HTTP · OData · RSS · CSV — all free, no API keys required</span></div>
+<div class="layer layer-ext">
+  <div class="section-label">🌍 &nbsp;External Data Sources &nbsp;·&nbsp; 8 Sources · All Public · No Authentication Required</div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-title">Disease.sh</div>
+      <div class="card-sub">disease.sh/v3<br>Updates every 15 min<br>COVID + Flu global</div>
+      <span class="card-tag tag-free">Free · No key</span>
+    </div>
+    <div class="card">
+      <div class="card-title">WHO GHO</div>
+      <div class="card-sub">ghoapi.azureedge.net<br>OData REST API<br>Malaria · TB · Dengue</div>
+      <span class="card-tag tag-free">Free · No key</span>
+    </div>
+    <div class="card">
+      <div class="card-title">CDC Open Data</div>
+      <div class="card-sub">data.cdc.gov<br>Socrata API<br>US disease stats</div>
+      <span class="card-tag tag-free">Free · No key</span>
+    </div>
+    <div class="card">
+      <div class="card-title">ECDC Open Data</div>
+      <div class="card-sub">opendata.ecdc.europa.eu<br>CSV downloads<br>Europe COVID · Flu</div>
+      <span class="card-tag tag-csv">Free · CSV</span>
+    </div>
+    <div class="card">
+      <div class="card-title">CDC FluView</div>
+      <div class="card-sub">cdc.gov/flu<br>Weekly ILI surveillance<br>US flu positivity</div>
+      <span class="card-tag tag-rss">RSS + API</span>
+    </div>
+    <div class="card">
+      <div class="card-title">CDC MMWR</div>
+      <div class="card-sub">cdc.gov/mmwr<br>2000+ disease reports<br>Outbreak alerts</div>
+      <span class="card-tag tag-rss">RSS feed</span>
+    </div>
+    <div class="card">
+      <div class="card-title">IHME GBD</div>
+      <div class="card-sub">healthdata.org<br>India burden estimates<br>2010–2023 · Manual CSV</div>
+      <span class="card-tag tag-csv">Free · CSV</span>
+    </div>
+    <div class="card">
+      <div class="card-title">HealthMap</div>
+      <div class="card-sub">healthmap.org<br>Geolocated alerts<br>Real-time JSON API</div>
+      <span class="card-tag tag-free">Public API</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     SECTION 2 · DATA PIPELINE (left → right)
+     ════════════════════════════════════════ -->
+
+<div class="divider" style="margin-top:52px;"><span>② Data Pipeline — How a Request Flows</span></div>
+
+<div class="pipeline">
+  <div class="pipe-step" style="border-color:rgba(120,40,200,0.3);">
+    <div class="pipe-num">Step 1 · Ingest</div>
+    <div class="pipe-title">External APIs</div>
+    <div class="pipe-desc">Disease.sh · WHO GHO · CDC · ECDC · MMWR RSS · HealthMap · IHME CSV</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(0,120,200,0.3);">
+    <div class="pipe-num">Step 2 · Fetch &amp; Parse</div>
+    <div class="pipe-title">data_sources/</div>
+    <div class="pipe-desc">Each module fetches its source · Parses REST / OData / RSS / CSV · Normalises to standard schema</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(60,80,200,0.3);">
+    <div class="pipe-num">Step 3 · Cache</div>
+    <div class="pipe-title">cache/ (TTL)</div>
+    <div class="pipe-desc">Saved to JSON on disk · 1 hr (live sources) · 24 hr (static) · Demo works offline</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(220,140,0,0.3);">
+    <div class="pipe-num">Step 4 · Analyse</div>
+    <div class="pipe-title">ml/ models</div>
+    <div class="pipe-desc">IsolationForest anomaly detection · Prophet forecast · KMeans risk classification</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(0,160,100,0.3);">
+    <div class="pipe-num">Step 5 · Serve</div>
+    <div class="pipe-title">FastAPI Routes</div>
+    <div class="pipe-desc">/globe/heatmap · /country/stats · /forecast · /alerts · /risk/score — JSON responses</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(0,140,220,0.3);">
+    <div class="pipe-num">Step 6 · Render</div>
+    <div class="pipe-title">Next.js Frontend</div>
+    <div class="pipe-desc">fetch() from page.tsx · Globe dots update · Country panel populates · Stats recalculate</div>
+  </div>
+  <div class="pipe-gap"></div>
+
+  <div class="pipe-step" style="border-color:rgba(0,140,220,0.4);" >
+    <div class="pipe-num">Step 7 · Display</div>
+    <div class="pipe-title">User sees live data</div>
+    <div class="pipe-desc">3D globe · Risk scores · Trend charts · Anomaly flags · Forecasts · Outbreak alerts</div>
+  </div>
+</div>
+
+<!-- ── Legend ── -->
+<div class="legend">
+  <div class="legend-item"><div class="ldot" style="background:#9060d0;"></div>External Data Sources (8)</div>
+  <div class="legend-item"><div class="ldot" style="background:#40a0e0;"></div>Data Source Modules</div>
+  <div class="legend-item"><div class="ldot" style="background:#30c080;"></div>FastAPI Backend Core</div>
+  <div class="legend-item"><div class="ldot" style="background:#e0a030;"></div>ML Models (3)</div>
+  <div class="legend-item"><div class="ldot" style="background:#30b8f0;"></div>Next.js Frontend</div>
+  <div class="legend-item"><div class="ldot" style="background:#7080e0;"></div>File Cache (TTL-based)</div>
+  <div class="legend-item"><div class="ldot" style="background:#606060;"></div>Fallback / Offline mode</div>
+</div>
+
+<footer>CosmoSentinel &nbsp;·&nbsp; 8 External Data Sources &nbsp;·&nbsp; 3 ML Models &nbsp;·&nbsp; Real-Time Disease Surveillance</footer>
+
+</body>
+</html>

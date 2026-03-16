@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 
 import { DISEASE_META, REGIONS, buildGlobeData, buildSpreadArcs } from '@/lib/disease-data';
 import type { DiseaseKey, GlobePoint, SpreadArc } from '@/lib/disease-data';
+
+const BACKEND = 'http://localhost:8000';
 import { formatNumber } from '@/lib/utils';
 import { CountryPanel } from '@/components/CountryPanel';
 
@@ -34,7 +36,22 @@ export default function Home() {
   const [heatmapMode, setHeatmapMode] = useState(false);
   const [countryDropdown, setCountryDropdown] = useState('');
 
-  useEffect(() => { setGlobeData(buildGlobeData(disease, region)); }, [disease, region]);
+  useEffect(() => {
+    // Try backend first; fall back to local mock data if backend is offline
+    fetch(`${BACKEND}/api/v1/globe/heatmap?disease=${disease}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((points: GlobePoint[]) => {
+        if (Array.isArray(points) && points.length > 0) {
+          setGlobeData(region === 'all'
+            ? points
+            : points.filter(p => p.region?.toLowerCase().includes(region.toLowerCase()))
+          );
+        } else {
+          setGlobeData(buildGlobeData(disease, region));
+        }
+      })
+      .catch(() => setGlobeData(buildGlobeData(disease, region)));
+  }, [disease, region]);
   useEffect(() => {
     setSpreadArcs(spreadMode ? buildSpreadArcs(disease, selectedCountry?.country, spreadPeriod) : []);
   }, [spreadMode, disease, selectedCountry, spreadPeriod]);

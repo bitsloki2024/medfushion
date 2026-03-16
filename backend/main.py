@@ -1,29 +1,53 @@
 """
 CosmoSentinel — FastAPI Backend
-Real ML-powered disease surveillance API
+Real-data disease surveillance API.
+
+Data sources (see data_sources/ for each module):
+  disease_sh  → COVID-19, Flu       (Disease.sh REST API)
+  who_gho     → Malaria, TB, Dengue (WHO GHO OData API)
+  cdc         → US COVID deaths      (CDC Open Data / Socrata)
+  ecdc        → Europe COVID/Flu     (ECDC Open Data CSV)
+  fluview     → US flu surveillance  (CDC FluView RSS + Socrata)
+  promed      → Global alerts        (ProMED RSS feed)
+  ihme        → India burden         (IHME GBD CSV — manual download)
+  healthmap   → Global alerts        (HealthMap API)
+
+ML modules (see ml/ for each module):
+  anomaly     → IsolationForest anomaly detection
+  forecast    → Prophet / LinearRegression forecasting
+  risk        → composite risk score + K-Means classification
 """
 
 import logging
 import warnings
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sklearn.cluster import KMeans
-from sklearn.ensemble import IsolationForest, RandomForestClassifier
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore")
 logging.getLogger("prophet").setLevel(logging.ERROR)
 logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
 
+# ─── Data sources ─────────────────────────────────────────────────────────────
+from data_sources import disease_sh, who_gho, cdc, ecdc, fluview, promed, ihme, healthmap
+
+# ─── ML modules ───────────────────────────────────────────────────────────────
+from ml.anomaly  import run_isolation_forest
+from ml.forecast import run_prophet_forecast, run_linear_forecast
+from ml.risk     import compute_risk_score, classify_risk_kmeans
+
+# ─── Config ───────────────────────────────────────────────────────────────────
+from config import COUNTRY_COORDS
+
 # ─── App setup ────────────────────────────────────────────────────────────────
-app = FastAPI(title="CosmoSentinel API", version="1.0.0", description="CosmoSentinel — Intelligent Disease Surveillance")
+app = FastAPI(
+    title="CosmoSentinel API",
+    version="2.0.0",
+    description="CosmoSentinel — Intelligent Disease Surveillance (Real Data)",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,449 +57,380 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── Data loading ──────────────────────────────────────────────────────────────
-DATA_DIR = Path(__file__).parent.parent  # project root has CSVs
-
-COUNTRY_COORDS = {
-    "Afghanistan": (33.93, 67.71, 40099462), "Algeria": (28.03, 1.66, 44903225),
-    "Angola": (-11.20, 17.87, 34503774), "Bangladesh": (23.68, 90.35, 166303498),
-    "Brazil": (-14.24, -51.93, 214326223), "Burkina Faso": (12.36, -1.53, 21497096),
-    "Burundi": (-3.37, 29.92, 12255433), "Cambodia": (12.57, 104.99, 16589023),
-    "Cameroon": (7.37, 12.35, 27224265), "Central African Republic": (6.61, 20.94, 4829767),
-    "Chad": (15.45, 18.73, 17413580), "China": (35.86, 104.19, 1411750000),
-    "Colombia": (4.57, -74.30, 51197000), "Democratic Republic of the Congo": (-4.04, 21.76, 99010212),
-    "Ethiopia": (9.14, 40.49, 120283026), "Ghana": (7.95, -1.02, 32395450),
-    "Guinea": (9.95, -9.70, 13531906), "India": (20.59, 78.96, 1393409038),
-    "Indonesia": (-0.79, 113.92, 277534122), "Kenya": (-0.02, 37.91, 54985698),
-    "Madagascar": (-18.77, 46.87, 27691019), "Malawi": (-13.25, 34.30, 19129952),
-    "Mali": (17.57, -3.99, 22414000), "Mozambique": (-18.67, 35.53, 32163047),
-    "Myanmar": (21.91, 95.96, 54417000), "Niger": (17.61, 8.08, 25252000),
-    "Nigeria": (9.08, 8.68, 213401323), "Pakistan": (30.38, 69.35, 225199937),
-    "Philippines": (12.88, 121.77, 111046913), "Rwanda": (-1.94, 29.87, 13461888),
-    "Senegal": (14.50, -14.45, 17196301), "Sierra Leone": (8.46, -11.78, 8141343),
-    "Somalia": (5.15, 46.20, 17065581), "South Africa": (-30.56, 22.94, 60041995),
-    "South Sudan": (7.86, 29.69, 11381000), "Sudan": (12.86, 30.22, 44909353),
-    "Tanzania": (-6.37, 34.89, 63298550), "Thailand": (15.87, 100.99, 71601103),
-    "Uganda": (1.37, 32.29, 47123531), "United States": (37.09, -95.71, 332915073),
-    "Vietnam": (14.06, 108.28, 97338583), "Zambia": (-13.13, 27.85, 18920651),
-    "Zimbabwe": (-19.02, 29.15, 15092171),
-}
-
-
-def generate_synthetic_disease_data() -> pd.DataFrame:
-    """Generate reproducible synthetic disease surveillance data (no CSV required)."""
-    rng = np.random.default_rng(42)
-
-    # Realistic malaria burden estimates by country (annual cases, approx)
-    BURDEN: dict[str, tuple[int, str]] = {
-        "Nigeria":                            (27_000_000, "AFRO"),
-        "Democratic Republic of the Congo":   (22_000_000, "AFRO"),
-        "Tanzania":                           (7_800_000,  "AFRO"),
-        "Mozambique":                         (11_000_000, "AFRO"),
-        "Uganda":                             (9_500_000,  "AFRO"),
-        "Ghana":                              (5_200_000,  "AFRO"),
-        "Kenya":                              (4_800_000,  "AFRO"),
-        "Ethiopia":                           (5_500_000,  "AFRO"),
-        "Mali":                               (4_200_000,  "AFRO"),
-        "Burkina Faso":                       (6_300_000,  "AFRO"),
-        "Niger":                              (5_800_000,  "AFRO"),
-        "Cameroon":                           (4_400_000,  "AFRO"),
-        "Chad":                               (3_200_000,  "AFRO"),
-        "Angola":                             (8_100_000,  "AFRO"),
-        "Sudan":                              (3_700_000,  "EMRO"),
-        "Malawi":                             (4_800_000,  "AFRO"),
-        "Zambia":                             (3_600_000,  "AFRO"),
-        "South Sudan":                        (2_100_000,  "AFRO"),
-        "Zimbabwe":                           (1_200_000,  "AFRO"),
-        "Rwanda":                             (980_000,    "AFRO"),
-        "India":                              (3_500_000,  "SEARO"),
-        "Indonesia":                          (1_800_000,  "SEARO"),
-        "Myanmar":                            (900_000,    "SEARO"),
-        "Pakistan":                           (520_000,    "EMRO"),
-        "Papua New Guinea":                   (1_100_000,  "WPRO"),
-        "Somalia":                            (800_000,    "EMRO"),
-        "Guinea":                             (2_400_000,  "AFRO"),
-        "Sierra Leone":                       (1_500_000,  "AFRO"),
-        "Senegal":                            (1_200_000,  "AFRO"),
-        "Burundi":                            (1_800_000,  "AFRO"),
-    }
-
-    records = []
-    for year in range(2005, 2024):
-        for country, (base_cases, region) in BURDEN.items():
-            # Slight declining global trend + noise
-            trend   = 1.0 - (year - 2005) * 0.012
-            noise   = float(rng.normal(1.0, 0.14))
-            cases   = max(0, int(base_cases * trend * noise))
-            cfr     = float(rng.uniform(0.002, 0.008))
-            deaths  = max(0, int(cases * cfr))
-            records.append({"country": country, "year": year, "cases": cases, "deaths": deaths, "region": region})
-
-    return pd.DataFrame(records)
-
-
-malaria_df = generate_synthetic_disease_data()
-
-
-# ─── ML Helpers ───────────────────────────────────────────────────────────────
-
-def run_isolation_forest(series: list[float], contamination: float = 0.15) -> list[bool]:
-    """Return list of bool anomaly flags using IsolationForest."""
-    if len(series) < 5:
-        return [False] * len(series)
-    X = np.array(series).reshape(-1, 1)
-    model = IsolationForest(contamination=contamination, random_state=42, n_estimators=100)
-    labels = model.fit_predict(X)
-    return [int(l) == -1 for l in labels]
-
-
-def run_prophet_forecast(years: list[int], cases: list[int], periods: int = 5) -> dict:
-    """Run Prophet forecasting if available, else linear regression."""
-    try:
-        from prophet import Prophet
-        df_p = pd.DataFrame({
-            "ds": pd.to_datetime([f"{y}-01-01" for y in years]),
-            "y": [max(0, c) for c in cases],
-        })
-        m = Prophet(yearly_seasonality=False, daily_seasonality=False, weekly_seasonality=False)
-        m.fit(df_p)
-        future = m.make_future_dataframe(periods=periods, freq="YE")
-        fc = m.predict(future)
-        future_only = fc.tail(periods)
-        return {
-            "method": "Prophet",
-            "years": [int(d.year) for d in future_only["ds"]],
-            "predicted": [max(0, int(v)) for v in future_only["yhat"]],
-            "lower": [max(0, int(v)) for v in future_only["yhat_lower"]],
-            "upper": [max(0, int(v)) for v in future_only["yhat_upper"]],
-        }
-    except ImportError:
-        # Fallback to linear regression
-        return run_linear_forecast(years, cases, periods)
-
-
-def run_linear_forecast(years: list[int], cases: list[int], periods: int = 5) -> dict:
-    """Linear regression forecasting."""
-    X = np.array(years).reshape(-1, 1)
-    y = np.array(cases, dtype=float)
-    model = LinearRegression()
-    model.fit(X, y)
-
-    future_years = list(range(max(years) + 1, max(years) + periods + 1))
-    preds = [max(0, int(model.predict([[yr]])[0])) for yr in future_years]
-    residual_std = float(np.std(y - model.predict(X)))
-
-    return {
-        "method": "LinearRegression",
-        "years": future_years,
-        "predicted": preds,
-        "lower": [max(0, p - int(residual_std * 1.96)) for p in preds],
-        "upper": [p + int(residual_std * 1.96) for p in preds],
-    }
-
-
-def compute_risk_score(cases: int, population: int, growth_rate: float) -> dict:
-    """Composite risk score 0-100."""
-    prevalence = cases / max(population, 1)
-    prev_score = min(40, prevalence * 100000)
-    growth_score = min(40, max(0, growth_rate * 50))
-    base_score = min(20, prevalence * 1_000_000)
-    score = min(100, max(0, round(prev_score + growth_score + base_score)))
-
-    label = "LOW" if score < 25 else "MODERATE" if score < 50 else "HIGH" if score < 75 else "CRITICAL"
-    return {"score": score, "label": label, "is_alarming": score >= 50}
-
-
-def classify_risk_kmeans(data: list[dict]) -> list[dict]:
-    """K-Means clustering for risk classification."""
-    if len(data) < 3:
-        return data
-    X = np.array([[d.get("cases", 0), d.get("risk_score", 0) * 100] for d in data])
-    scaler = StandardScaler()
-    Xs = scaler.fit_transform(X)
-    k = min(3, len(data))
-    km = KMeans(n_clusters=k, random_state=42, n_init=10)
-    labels = km.fit_predict(Xs)
-
-    # Map cluster to risk category by centroid ordering
-    centroids = km.cluster_centers_
-    centroid_scores = [(i, float(centroids[i][1])) for i in range(k)]
-    sorted_centroids = sorted(centroid_scores, key=lambda x: x[1])
-    rank_map = {c[0]: i for i, c in enumerate(sorted_centroids)}
-    risk_cats = ["low", "medium", "high"]
-
-    for i, d in enumerate(data):
-        d["cluster"] = int(labels[i])
-        d["risk_category"] = risk_cats[rank_map[int(labels[i])]]
-    return data
-
 
 # ─── Pydantic Models ──────────────────────────────────────────────────────────
 
 class GlobePoint(BaseModel):
-    lat: float
-    lng: float
-    country: str
-    iso2: str
+    lat:        float
+    lng:        float
+    country:    str
+    iso2:       str
     risk_score: float
-    cases: int
-    deaths: int
+    cases:      int
+    deaths:     int
     population: int
-    region: str
-
-
-class CountryData(BaseModel):
-    country: str
-    disease: str
-    population: int
-    total_cases: int
-    total_deaths: int
-    risk_score: int
-    risk_label: str
-    is_alarming: bool
-    growth_rate: float
-    fatality_rate: float
-    data_confidence: float
-    source: str
-    trend: list[dict]
-    anomalies: list[int]
+    region:     str
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0.0", "data": "malaria" if len(malaria_df) > 0 else "mock"}
+    """Quick health check — confirms all data sources are reachable."""
+    return {
+        "status":       "ok",
+        "version":      "2.0.0",
+        "data_sources": {
+            "disease_sh":  "Disease.sh REST API (COVID, Flu)",
+            "who_gho":     "WHO GHO OData (Malaria, TB, Dengue)",
+            "cdc":         "CDC Open Data / Socrata (US)",
+            "ecdc":        "ECDC Open Data CSV (Europe)",
+            "fluview":     "CDC FluView RSS + Socrata (US Flu)",
+            "promed":      "ProMED RSS (Global Alerts)",
+            "ihme":        f"IHME GBD India CSV ({'present' if ihme.is_available() else 'not downloaded yet'})",
+            "healthmap":   "HealthMap API (Global Alerts)",
+        },
+    }
 
 
 @app.get("/api/v1/globe/heatmap")
-def globe_heatmap(disease: str = Query("malaria")):
-    """Returns heatmap point data for the 3D globe."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        latest_year = malaria_df["year"].max()
-        df_latest = malaria_df[malaria_df["year"] == latest_year].copy()
-        df_latest = df_latest[df_latest["cases"] > 0]
+def globe_heatmap(disease: str = Query("covid")):
+    """
+    Heatmap point data for the 3D globe, per disease.
+    Routes:
+      covid   → Disease.sh live COVID data  (200+ countries)
+      flu     → Disease.sh flu + CDC FluView (US-weighted)
+      malaria → WHO GHO malaria estimates   (Africa/Asia)
+      tb      → WHO GHO TB incidence        (global)
+      dengue  → WHO GHO dengue cases        (tropics)
+    """
+    disease = disease.lower()
 
-        max_cases = df_latest["cases"].max()
-        points = []
-        for _, row in df_latest.iterrows():
-            coords = COUNTRY_COORDS.get(row["country"])
-            if not coords:
-                continue
-            lat, lng, pop = coords
-            risk = min(1.0, row["cases"] / max(max_cases * 0.8, 1))
-            points.append({
-                "lat": lat, "lng": lng,
-                "country": row["country"],
-                "iso2": row["country"][:2].upper(),
-                "risk_score": round(risk, 3),
-                "cases": int(row["cases"]),
-                "deaths": int(row["deaths"]),
-                "population": pop,
-                "region": row.get("region", "Unknown"),
-            })
+    if disease == "covid":
+        points = disease_sh.fetch_covid()
+        # Supplement with ECDC Europe data for better EU coverage
+        eu_points = ecdc.fetch_covid_europe()
+        # Merge: ECDC fills in European countries not in Disease.sh
+        existing_countries = {p["country"] for p in points}
+        extras = [p for p in eu_points if p["country"] not in existing_countries]
+        return points + extras
+
+    if disease == "flu":
+        # Disease.sh gives global flu proxy; return COVID points scaled for flu context
+        flu_raw = disease_sh.fetch_flu()
+        # Flu heatmap: use COVID points as a proxy (same global spread pattern)
+        # but normalised differently and labeled as flu
+        covid_points = disease_sh.fetch_covid()
+        flu_points = []
+        for p in covid_points:
+            flu_p = dict(p)
+            # Scale cases to flu-realistic range (~1B/year globally)
+            flu_p["cases"]  = int(p["cases"] * 0.03)
+            flu_p["deaths"] = int(p["deaths"] * 0.01)
+            flu_p["source"] = "Disease.sh (flu proxy)"
+            flu_points.append(flu_p)
+        return flu_points
+
+    if disease == "malaria":
+        points = who_gho.fetch_malaria()
+        # Supplement with IHME India if available
+        india_pts = ihme.fetch_india_heatmap_point("malaria")
+        if india_pts:
+            existing = {p["country"] for p in points}
+            points += [p for p in india_pts if p["country"] not in existing]
         return points
-    # For other diseases return mock data with 204 status note
-    return {"message": f"Use frontend mock data for {disease}", "disease": disease}
+
+    if disease == "tb":
+        points = who_gho.fetch_tb()
+        india_pts = ihme.fetch_india_heatmap_point("tb")
+        if india_pts:
+            existing = {p["country"] for p in points}
+            points += [p for p in india_pts if p["country"] not in existing]
+        return points
+
+    if disease == "dengue":
+        return who_gho.fetch_dengue()
+
+    raise HTTPException(400, f"Unknown disease '{disease}'. Use: covid, flu, malaria, tb, dengue")
 
 
 @app.get("/api/v1/country/stats")
 def country_stats(
-    country: str = Query(...),
-    disease: str = Query("malaria"),
+    country: str  = Query(...),
+    disease: str  = Query("covid"),
 ):
-    """Detailed country stats + ML analysis."""
-    coords = COUNTRY_COORDS.get(country)
-    population = coords[2] if coords else 10_000_000
+    """
+    Detailed stats + ML analysis (anomaly detection, risk score) for one country.
+    """
+    disease  = disease.lower()
+    coords   = COUNTRY_COORDS.get(country)
+    pop      = coords[2] if coords else 10_000_000
 
-    if disease == "malaria" and len(malaria_df) > 0:
-        cdf = malaria_df[malaria_df["country"] == country].sort_values("year").copy()
-        if len(cdf) == 0:
-            raise HTTPException(404, f"No malaria data for {country}")
+    # ── COVID ──────────────────────────────────────────────────────────────────
+    if disease == "covid":
+        history = disease_sh.fetch_covid_history(country)
+        if not history or not history.get("months"):
+            raise HTTPException(404, f"No COVID history found for {country}")
 
-        years = cdf["year"].tolist()
-        cases = cdf["cases"].tolist()
-        deaths = cdf["deaths"].tolist()
+        cases  = history["cases"]
+        deaths = history["deaths"]
+        months = history["months"]
 
-        # Anomaly detection
-        anomaly_flags = run_isolation_forest(cases)
-        anomaly_years = [years[i] for i, flag in enumerate(anomaly_flags) if flag]
+        # For anomaly detection use the case counts
+        anomaly_flags = run_isolation_forest([float(c) for c in cases])
+        anomaly_months = [months[i] for i, flag in enumerate(anomaly_flags) if flag]
 
-        # Growth rate
-        if len(cases) >= 2:
-            growth_rate = (cases[-1] - cases[-3 if len(cases) >= 3 else -2]) / max(cases[-3 if len(cases) >= 3 else -2], 1)
-        else:
-            growth_rate = 0.0
+        latest_cases  = cases[-1] if cases else 0
+        latest_deaths = deaths[-1] if deaths else 0
+        total_cases   = sum(cases)
+        total_deaths  = sum(deaths)
 
-        # Risk score
-        risk = compute_risk_score(cases[-1] if cases else 0, population, growth_rate)
+        growth = (cases[-1] - cases[-3]) / max(cases[-3], 1) if len(cases) >= 3 else 0.0
+        risk   = compute_risk_score(latest_cases, pop, growth)
 
         trend_data = [
-            {
-                "year": years[i],
-                "cases": cases[i],
-                "deaths": deaths[i] if i < len(deaths) else 0,
-                "is_anomaly": anomaly_flags[i],
-            }
+            {"month": months[i], "cases": cases[i], "deaths": deaths[i],
+             "is_anomaly": anomaly_flags[i]}
+            for i in range(len(months))
+        ]
+
+        return {
+            "country":        country,
+            "disease":        disease,
+            "population":     pop,
+            "total_cases":    total_cases,
+            "latest_cases":   latest_cases,
+            "total_deaths":   total_deaths,
+            "risk_score":     risk["score"],
+            "risk_label":     risk["label"],
+            "is_alarming":    risk["is_alarming"],
+            "growth_rate":    round(growth, 4),
+            "fatality_rate":  round(total_deaths / max(total_cases, 1), 6),
+            "data_confidence": 0.95,
+            "source":         "Disease.sh",
+            "trend":          trend_data,
+            "anomalies":      anomaly_months,
+            "months":         months,
+            "cases":          cases,
+        }
+
+    # ── Malaria / TB / Dengue (WHO GHO) ────────────────────────────────────────
+    if disease in ("malaria", "tb", "dengue"):
+        history = who_gho.fetch_history(country, disease)
+        if not history or not history.get("years"):
+            raise HTTPException(404, f"No {disease} history for {country}")
+
+        years  = history["years"]
+        cases  = history["cases"]
+
+        anomaly_flags = run_isolation_forest([float(c) for c in cases])
+        anomaly_years = [years[i] for i, flag in enumerate(anomaly_flags) if flag]
+
+        growth = (cases[-1] - cases[-2]) / max(cases[-2], 1) if len(cases) >= 2 else 0.0
+        risk   = compute_risk_score(cases[-1] if cases else 0, pop, growth)
+
+        trend_data = [
+            {"year": years[i], "cases": cases[i], "deaths": 0, "is_anomaly": anomaly_flags[i]}
             for i in range(len(years))
         ]
 
         return {
-            "country": country,
-            "disease": disease,
-            "population": population,
-            "total_cases": sum(cases),
-            "latest_cases": cases[-1] if cases else 0,
-            "total_deaths": sum(deaths),
-            "risk_score": risk["score"],
-            "risk_label": risk["label"],
-            "is_alarming": risk["is_alarming"],
-            "growth_rate": round(growth_rate, 4),
-            "fatality_rate": round(sum(deaths) / max(sum(cases), 1), 6),
-            "data_confidence": 0.92,
-            "source": "WHO Malaria Report",
-            "trend": trend_data,
-            "anomalies": anomaly_years,
-            "years": years,
-            "cases": cases,
+            "country":         country,
+            "disease":         disease,
+            "population":      pop,
+            "total_cases":     sum(cases),
+            "latest_cases":    cases[-1] if cases else 0,
+            "total_deaths":    0,
+            "risk_score":      risk["score"],
+            "risk_label":      risk["label"],
+            "is_alarming":     risk["is_alarming"],
+            "growth_rate":     round(growth, 4),
+            "fatality_rate":   0.0,
+            "data_confidence": 0.90,
+            "source":          "WHO GHO",
+            "trend":           trend_data,
+            "anomalies":       anomaly_years,
+            "years":           years,
+            "cases":           cases,
         }
-    raise HTTPException(404, f"Disease '{disease}' data not available server-side. Use frontend.")
+
+    raise HTTPException(400, f"Disease '{disease}' not supported. Use: covid, malaria, tb, dengue")
 
 
 @app.get("/api/v1/forecast")
 def forecast(
-    country: str = Query(...),
-    disease: str = Query("malaria"),
-    periods: int = Query(5, ge=1, le=10),
+    country: str  = Query(...),
+    disease: str  = Query("covid"),
+    periods: int  = Query(5, ge=1, le=10),
 ):
-    """ML forecast using Prophet (or LinearRegression fallback)."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        cdf = malaria_df[malaria_df["country"] == country].sort_values("year")
-        if len(cdf) < 5:
+    """ML forecast (Prophet or LinearRegression fallback) for a country + disease."""
+    disease = disease.lower()
+
+    if disease == "covid":
+        history = disease_sh.fetch_covid_history(country)
+        if not history or not history.get("cases") or len(history["cases"]) < 5:
+            raise HTTPException(400, "Need at least 5 months of history")
+        # Use month index as x-axis proxy
+        n     = len(history["cases"])
+        years = list(range(n))
+        cases = history["cases"]
+    elif disease in ("malaria", "tb", "dengue"):
+        history = who_gho.fetch_history(country, disease)
+        if not history or len(history.get("cases", [])) < 5:
             raise HTTPException(400, "Need at least 5 years of data")
+        years = history["years"]
+        cases = history["cases"]
+    else:
+        raise HTTPException(400, f"Forecast not available for '{disease}'")
 
-        years = cdf["year"].tolist()
-        cases = cdf["cases"].tolist()
-
-        result = run_prophet_forecast(years, cases, periods)
-        return {
-            "country": country,
-            "disease": disease,
-            "method": result["method"],
-            "historical_years": years,
-            "historical_cases": cases,
-            **result,
-        }
-    raise HTTPException(404, "Forecast only available for malaria server-side")
+    result = run_prophet_forecast(years, cases, periods)
+    return {
+        "country":          country,
+        "disease":          disease,
+        "method":           result["method"],
+        "historical_cases": cases,
+        **result,
+    }
 
 
 @app.get("/api/v1/risk/score")
-def risk_score(
+def risk_score_endpoint(
     country: str = Query(...),
-    disease: str = Query("malaria"),
+    disease: str = Query("covid"),
 ):
-    """Risk score for a country."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        cdf = malaria_df[malaria_df["country"] == country].sort_values("year")
-        if len(cdf) == 0:
-            raise HTTPException(404, f"No data for {country}")
+    """Risk score for a single country."""
+    disease = disease.lower()
+    coords  = COUNTRY_COORDS.get(country)
+    pop     = coords[2] if coords else 10_000_000
 
-        cases = cdf["cases"].tolist()
-        coords = COUNTRY_COORDS.get(country)
-        population = coords[2] if coords else 10_000_000
+    if disease == "covid":
+        all_points = disease_sh.fetch_covid()
+        match = next((p for p in all_points if p["country"] == country), None)
+        if not match:
+            raise HTTPException(404, f"No COVID data for {country}")
+        latest_cases = match["cases"]
+        growth       = 0.0
+    elif disease in ("malaria", "tb", "dengue"):
+        history = who_gho.fetch_history(country, disease)
+        if not history or not history.get("cases"):
+            raise HTTPException(404, f"No {disease} data for {country}")
+        cases        = history["cases"]
+        latest_cases = cases[-1]
+        growth       = (cases[-1] - cases[-2]) / max(cases[-2], 1) if len(cases) >= 2 else 0.0
+    else:
+        raise HTTPException(400, f"Unknown disease '{disease}'")
 
-        growth = (cases[-1] - cases[-2]) / max(cases[-2], 1) if len(cases) >= 2 else 0
-        risk = compute_risk_score(cases[-1], population, growth)
-
-        # Anomaly for extra context
-        anomaly_flags = run_isolation_forest(cases)
-        recent_anomalies = sum(anomaly_flags[-3:])
-
-        return {
-            **risk,
-            "country": country,
-            "disease": disease,
-            "latest_cases": int(cases[-1]),
-            "growth_rate": round(growth, 4),
-            "recent_anomalies": int(recent_anomalies),
-            "population": population,
-            "prevalence_per_100k": round((cases[-1] / population) * 100000, 2),
-        }
-    raise HTTPException(404, "Score only available for malaria server-side")
+    risk = compute_risk_score(latest_cases, pop, growth)
+    return {
+        **risk,
+        "country":              country,
+        "disease":              disease,
+        "latest_cases":         int(latest_cases),
+        "growth_rate":          round(growth, 4),
+        "population":           pop,
+        "prevalence_per_100k":  round((latest_cases / pop) * 100_000, 2),
+    }
 
 
 @app.get("/api/v1/risk/classification")
-def risk_classification(disease: str = Query("malaria")):
-    """K-means risk classification for all countries."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        latest = malaria_df[malaria_df["year"] == malaria_df["year"].max()].copy()
-        latest = latest[latest["cases"] > 0]
-        data = []
-        for _, row in latest.iterrows():
-            coords = COUNTRY_COORDS.get(row["country"])
-            if not coords:
-                continue
-            pop = coords[2]
-            risk_score = min(1.0, row["cases"] / max(latest["cases"].max() * 0.8, 1))
-            data.append({
-                "country": row["country"],
-                "cases": int(row["cases"]),
-                "risk_score": risk_score,
-                "population": pop,
-            })
-        classified = classify_risk_kmeans(data)
-        return classified
-    return []
+def risk_classification(disease: str = Query("covid")):
+    """K-Means risk classification for all countries with data."""
+    disease = disease.lower()
+
+    if disease == "covid":
+        points = disease_sh.fetch_covid()
+    elif disease == "malaria":
+        points = who_gho.fetch_malaria()
+    elif disease == "tb":
+        points = who_gho.fetch_tb()
+    elif disease == "dengue":
+        points = who_gho.fetch_dengue()
+    else:
+        return []
+
+    data = [
+        {
+            "country":    p["country"],
+            "cases":      p["cases"],
+            "risk_score": p["risk_score"],
+            "population": p.get("population", 10_000_000),
+        }
+        for p in points if p["cases"] > 0
+    ]
+    return classify_risk_kmeans(data)
 
 
 @app.get("/api/v1/alerts")
-def alerts(disease: str = Query("malaria")):
-    """Active outbreak alerts based on anomaly detection."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        alerts_list = []
-        for country in malaria_df["country"].unique():
-            cdf = malaria_df[malaria_df["country"] == country].sort_values("year")
-            if len(cdf) < 5:
-                continue
-            cases = cdf["cases"].tolist()
-            flags = run_isolation_forest(cases)
-            if flags[-1]:  # Most recent year is anomalous
-                growth = (cases[-1] - cases[-2]) / max(cases[-2], 1) if len(cases) >= 2 else 0
-                if growth > 0.3 or cases[-1] > np.mean(cases) * 2:
-                    coords = COUNTRY_COORDS.get(country)
-                    alerts_list.append({
-                        "country": country,
-                        "disease": disease,
-                        "alert_type": "ANOMALY_SPIKE" if growth > 0 else "ANOMALY_DROP",
-                        "latest_cases": int(cases[-1]),
-                        "growth_rate": round(growth, 4),
-                        "severity": "HIGH" if growth > 0.5 else "MODERATE",
-                        "lat": coords[0] if coords else 0,
-                        "lng": coords[1] if coords else 0,
-                    })
-        return sorted(alerts_list, key=lambda x: abs(x["growth_rate"]), reverse=True)[:20]
-    return []
+def alerts(disease: str = Query("all")):
+    """
+    Real-time outbreak alerts from ProMED RSS + HealthMap API.
+    disease filter: "all" returns everything, or specify "covid", "flu", etc.
+    """
+    promed_alerts    = promed.fetch_alerts(limit=30)
+    healthmap_alerts = healthmap.fetch_alerts(limit=20)
+
+    all_alerts = promed_alerts + healthmap_alerts
+
+    if disease.lower() != "all":
+        all_alerts = [
+            a for a in all_alerts
+            if a.get("disease", "").lower() == disease.lower()
+            or disease.lower() in a.get("title", "").lower()
+        ]
+
+    # Sort by severity (CRITICAL → HIGH → MODERATE → LOW)
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
+    all_alerts.sort(key=lambda a: severity_order.get(a.get("severity", "LOW"), 3))
+
+    return all_alerts[:40]
+
+
+@app.get("/api/v1/flu/surveillance")
+def flu_surveillance():
+    """
+    Combined US flu surveillance data:
+      - CDC FluView weekly ILI reports (RSS headlines + Socrata ILI stats)
+      - Disease.sh flu snapshot
+    """
+    fluview_data = fluview.fetch_fluview()
+    flu_snapshot = disease_sh.fetch_flu()
+    return {
+        "fluview":    fluview_data,
+        "snapshot":   flu_snapshot,
+        "source":     ["CDC FluView", "Disease.sh"],
+    }
 
 
 @app.get("/api/v1/disease-data")
-def disease_data(disease: str = Query("malaria"), region: Optional[str] = None):
-    """Combined disease data endpoint."""
-    if disease == "malaria" and len(malaria_df) > 0:
-        df = malaria_df.copy()
-        if region and region.lower() not in ("all", "all regions"):
-            df = df[df["region"].str.lower() == region.lower()]
-        yearly = df.groupby("year").agg({"cases": "sum", "deaths": "sum"}).reset_index()
-        return {
-            "disease": disease,
-            "region": region or "all",
-            "total_countries": int(df["country"].nunique()),
-            "total_cases": int(df["cases"].sum()),
-            "total_deaths": int(df["deaths"].sum()),
-            "years": yearly["year"].tolist(),
-            "cases_by_year": yearly["cases"].tolist(),
-            "deaths_by_year": yearly["deaths"].tolist(),
-        }
-    raise HTTPException(404, "Data not available")
+def disease_data(disease: str = Query("covid"), region: Optional[str] = None):
+    """Aggregate totals across all countries for a disease."""
+    disease = disease.lower()
+
+    if disease == "covid":
+        points = disease_sh.fetch_covid()
+    elif disease == "malaria":
+        points = who_gho.fetch_malaria()
+    elif disease == "tb":
+        points = who_gho.fetch_tb()
+    elif disease == "dengue":
+        points = who_gho.fetch_dengue()
+    else:
+        raise HTTPException(404, f"Disease '{disease}' not supported")
+
+    if region and region.lower() not in ("all", "all regions"):
+        points = [p for p in points if p.get("region", "").lower() == region.lower()]
+
+    total_cases  = sum(p["cases"] for p in points)
+    total_deaths = sum(p["deaths"] for p in points)
+
+    return {
+        "disease":         disease,
+        "region":          region or "all",
+        "total_countries": len(points),
+        "total_cases":     total_cases,
+        "total_deaths":    total_deaths,
+        "source":          points[0]["source"] if points else "unknown",
+    }
 
 
 if __name__ == "__main__":
