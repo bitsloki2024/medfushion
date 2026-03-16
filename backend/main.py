@@ -1,5 +1,5 @@
 """
-PATHOSENSE — FastAPI Backend
+CosmoSentinel — FastAPI Backend
 Real ML-powered disease surveillance API
 """
 
@@ -23,7 +23,7 @@ logging.getLogger("prophet").setLevel(logging.ERROR)
 logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
 
 # ─── App setup ────────────────────────────────────────────────────────────────
-app = FastAPI(title="PATHOSENSE API", version="1.0.0", description="Intelligent Disease Surveillance")
+app = FastAPI(title="CosmoSentinel API", version="1.0.0", description="CosmoSentinel — Intelligent Disease Surveillance")
 
 app.add_middleware(
     CORSMiddleware,
