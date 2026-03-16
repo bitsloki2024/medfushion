@@ -2,178 +2,199 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Google Font Import ─────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;700;900&display=swap');
+/* ─── Google Font Import ─────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ─── Root Variables ─────────────────────────────────────── */
+/* ─── Root Variables ─────────────────────────────────────────────── */
 :root {
   --bg-deep:    #000814;
-  --bg-dark:    #001233;
-  --cyan:       #00d4ff;
+  --bg-dark:    #00091f;
+  --cyan:       #00b4e0;
   --blue:       #3b82f6;
-  --purple:     #7c3aed;
-  --pink:       #e879f9;
   --risk-low:   #22c55e;
   --risk-mod:   #eab308;
   --risk-high:  #f97316;
   --risk-crit:  #ef4444;
+
+  /* Executive typography scale */
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Menlo', 'Monaco', monospace;
+
+  --text-xs:   0.65rem;
+  --text-sm:   0.75rem;
+  --text-base: 0.875rem;
+  --text-lg:   1rem;
+  --text-xl:   1.15rem;
 }
 
-/* ─── Base ───────────────────────────────────────────────── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ─── Base ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
-  overflow-x: clip; /* clip doesn't create a scroll container — sticky works correctly */
+  overflow-x: clip;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100%;
   background: var(--bg-deep);
-  color: #e2e8f0;
-  font-family: 'Inter', system-ui, sans-serif;
+  color: #d8e8f5;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
-::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.6); }
+/* ─── Executive Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0,160,220,0.2);
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0,160,220,0.45); }
+::-webkit-scrollbar-corner { background: transparent; }
 
-/* ─── Ombre flowing title animation ──────────────────────── */
-.ombre-text {
-  background: linear-gradient(
-    90deg,
-    #00d4ff 0%,
-    #3b82f6 20%,
-    #7c3aed 40%,
-    #e879f9 60%,
-    #3b82f6 80%,
-    #00d4ff 100%
-  );
-  background-size: 400% auto;
+/* ─── Brand gradient text ─────────────────────────────────────────── */
+.brand-text {
+  background: linear-gradient(90deg, #a8d8f0 0%, #60a8d0 40%, #8ec8e8 80%, #a8d8f0 100%);
+  background-size: 300% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: ombreFlow 5s linear infinite;
-  font-family: 'Orbitron', monospace;
+  animation: brandFlow 8s linear infinite;
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: 0.1em;
+}
+
+/* Keep ombre-text for backward compat but refine it */
+.ombre-text {
+  background: linear-gradient(90deg, #a0c8e8 0%, #60a0cc 35%, #80c0e0 70%, #a0c8e8 100%);
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: brandFlow 8s linear infinite;
+  font-family: var(--font-display);
+  font-weight: 600;
   letter-spacing: 0.08em;
 }
 
-@keyframes ombreFlow {
+@keyframes brandFlow {
   0%   { background-position: 0% center; }
-  100% { background-position: 400% center; }
+  100% { background-position: 300% center; }
 }
 
-/* ─── Glass morphism cards ───────────────────────────────── */
+/* ─── Glassmorphism cards ─────────────────────────────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  background: rgba(0, 20, 50, 0.45);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
 }
 
 .glass-strong {
-  background: rgba(0, 18, 51, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 212, 255, 0.15);
-  border-radius: 12px;
+  background: rgba(0, 12, 36, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 160, 220, 0.12);
+  border-radius: 10px;
 }
 
-/* ─── Glow effects ───────────────────────────────────────── */
-.glow-cyan  { box-shadow: 0 0 20px rgba(0,212,255,0.25), 0 0 40px rgba(0,212,255,0.1); }
-.glow-red   { box-shadow: 0 0 20px rgba(239,68,68,0.3),  0 0 40px rgba(239,68,68,0.15); }
-.glow-green { box-shadow: 0 0 20px rgba(34,197,94,0.25), 0 0 40px rgba(34,197,94,0.1); }
-.glow-amber { box-shadow: 0 0 20px rgba(234,179,8,0.3),  0 0 40px rgba(234,179,8,0.1); }
+/* ─── Glow effects — restrained ──────────────────────────────────── */
+.glow-cyan  { box-shadow: 0 0 16px rgba(0,160,220,0.18), 0 0 32px rgba(0,160,220,0.07); }
+.glow-red   { box-shadow: 0 0 16px rgba(239,68,68,0.22),  0 0 32px rgba(239,68,68,0.08); }
+.glow-green { box-shadow: 0 0 16px rgba(34,197,94,0.18),  0 0 32px rgba(34,197,94,0.07); }
+.glow-amber { box-shadow: 0 0 16px rgba(234,179,8,0.18),  0 0 32px rgba(234,179,8,0.07); }
 
-/* ─── Risk badge ─────────────────────────────────────────── */
-.risk-low      { color: #22c55e; border-color: rgba(34,197,94,0.4); }
-.risk-moderate { color: #eab308; border-color: rgba(234,179,8,0.4); }
-.risk-high     { color: #f97316; border-color: rgba(249,115,22,0.4); }
-.risk-critical { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+/* ─── Risk badges ─────────────────────────────────────────────────── */
+.risk-low      { color: #22c55e; border-color: rgba(34,197,94,0.3); }
+.risk-moderate { color: #eab308; border-color: rgba(234,179,8,0.3); }
+.risk-high     { color: #f97316; border-color: rgba(249,115,22,0.3); }
+.risk-critical { color: #ef4444; border-color: rgba(239,68,68,0.3); }
 
-/* ─── Pulse dot animation ────────────────────────────────── */
+/* ─── Live indicator pulse ───────────────────────────────────────── */
 @keyframes pulseDot {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.6); opacity: 0.4; }
+  50% { transform: scale(1.4); opacity: 0.5; }
 }
-.pulse-dot { animation: pulseDot 1.8s ease-in-out infinite; }
+.pulse-dot { animation: pulseDot 2.2s ease-in-out infinite; }
 
-/* ─── Scan line animation ────────────────────────────────── */
-@keyframes scanLine {
-  0%   { top: -2px; opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { top: 100%; opacity: 0; }
-}
-.scan-line {
-  position: absolute;
-  left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.6), transparent);
-  animation: scanLine 4s linear infinite;
-  pointer-events: none;
+/* ─── Globe container ────────────────────────────────────────────── */
+.globe-container {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #001528 0%, #000814 65%);
 }
 
-/* ─── Hex grid pattern background ────────────────────────── */
+/* ─── Right panel — smooth independent scroll ─────────────────────── */
+.right-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,160,220,0.2) transparent;
+  /* Smooth momentum scrolling on iOS/macOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+.right-panel::-webkit-scrollbar { width: 3px; }
+.right-panel::-webkit-scrollbar-track { background: transparent; }
+.right-panel::-webkit-scrollbar-thumb {
+  background: rgba(0,160,220,0.18);
+  border-radius: 2px;
+}
+.right-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,160,220,0.4);
+}
+
+/* ─── Chart overrides ────────────────────────────────────────────── */
+.recharts-tooltip-wrapper { outline: none !important; }
+
+/* ─── Data number display ────────────────────────────────────────── */
+.stat-number {
+  font-family: var(--font-display);
+  font-weight: 200;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Subtle dot grid background ─────────────────────────────────── */
 .hex-bg {
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(0,212,255,0.04) 1px, transparent 0);
-  background-size: 24px 24px;
+    radial-gradient(circle at 1px 1px, rgba(0,140,200,0.025) 1px, transparent 0);
+  background-size: 28px 28px;
 }
 
-/* ─── Data confidence bar ────────────────────────────────── */
+/* ─── Animated border ────────────────────────────────────────────── */
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(0,160,220,0.1); }
+  50% { border-color: rgba(0,160,220,0.28); }
+}
+.animate-border { animation: borderGlow 4s ease-in-out infinite; }
+
+/* ─── Fade in up ──────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+
+/* ─── Confidence bar ─────────────────────────────────────────────── */
 .confidence-bar {
-  height: 4px;
+  height: 3px;
   border-radius: 2px;
   background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
   position: relative;
 }
 
-/* ─── Globe container ────────────────────────────────────── */
-.globe-container {
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(ellipse at center, #001233 0%, #000814 70%);
-}
-
-/* ─── Right panel scroll ─────────────────────────────────── */
-.right-panel {
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0,212,255,0.3) transparent;
-}
-
-/* ─── Chart tooltip override ─────────────────────────────── */
-.recharts-tooltip-wrapper {
-  outline: none !important;
-}
-
-/* ─── Stat number font ───────────────────────────────────── */
-.stat-number {
-  font-family: 'JetBrains Mono', 'Orbitron', monospace;
-  letter-spacing: 0.05em;
-}
-
-/* ─── Animated border ────────────────────────────────────── */
-@keyframes borderGlow {
-  0%, 100% { border-color: rgba(0,212,255,0.15); }
-  50% { border-color: rgba(0,212,255,0.4); }
-}
-.animate-border { animation: borderGlow 3s ease-in-out infinite; }
-
-/* ─── Fade in ────────────────────────────────────────────── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
-
-/* ─── Particle dots ──────────────────────────────────────── */
-@keyframes particleDrift {
-  0%   { transform: translate(0, 0) scale(1); opacity: 0.6; }
-  50%  { transform: translate(var(--dx), var(--dy)) scale(1.2); opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+/* ─── Smooth panel transitions ───────────────────────────────────── */
+.panel-slide-in {
+  transition: opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }

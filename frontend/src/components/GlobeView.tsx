@@ -6,7 +6,6 @@ import type { GlobePoint, SpreadArc } from '@/lib/disease-data';
 import { getRiskColor } from '@/lib/disease-data';
 import type { DiseaseKey } from '@/lib/disease-data';
 
-// Dynamic import for react-globe.gl
 import Globe from 'react-globe.gl';
 
 interface Props {
@@ -18,63 +17,45 @@ interface Props {
   selectedCountry: GlobePoint | null;
 }
 
-// ─── Starfield helper ──────────────────────────────────────────────────────────
+// ─── Starfield ────────────────────────────────────────────────────────────────
 function addStarfield(scene: THREE.Scene): void {
-  const starCount = 6000;
-  const positions = new Float32Array(starCount * 3);
-  const colors = new Float32Array(starCount * 3);
-  const sizes = new Float32Array(starCount);
-
-  for (let i = 0; i < starCount; i++) {
+  const count = 5000;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 800 + Math.random() * 400;
-
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const r     = 800 + Math.random() * 400;
     positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i * 3 + 2] = r * Math.cos(phi);
-
-    // Bluish-white star colors
-    const brightness = 0.6 + Math.random() * 0.4;
-    colors[i * 3]     = brightness * (0.85 + Math.random() * 0.15);
-    colors[i * 3 + 1] = brightness * (0.85 + Math.random() * 0.15);
-    colors[i * 3 + 2] = brightness;
-
-    sizes[i] = 0.5 + Math.random() * 1.5;
   }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-
-  const material = new THREE.PointsMaterial({
-    size: 1.2,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.9,
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0xd0e8ff, size: 1.0,
+    transparent: true, opacity: 0.7,
     sizeAttenuation: false,
   });
-
-  const stars = new THREE.Points(geometry, material);
+  const stars = new THREE.Points(geo, mat);
   stars.name = 'starfield';
   scene.add(stars);
 }
 
-// ─── Main Globe Component ──────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function GlobeView({ globeData, spreadArcs, onCountrySelect, selectedCountry }: Props) {
-  const globeRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const globeRef      = useRef<any>(null);
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions]   = useState({ width: 800, height: 600 });
   const [hoveredPoint, setHoveredPoint] = useState<GlobePoint | null>(null);
+  const [tooltipPos, setTooltipPos]   = useState({ x: 0, y: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Measure container
+  // Container sizing
   useEffect(() => {
     const measure = () => {
       if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
+        const r = containerRef.current.getBoundingClientRect();
+        setDimensions({ width: r.width, height: r.height });
       }
     };
     measure();
@@ -83,78 +64,66 @@ export default function GlobeView({ globeData, spreadArcs, onCountrySelect, sele
     return () => ro.disconnect();
   }, []);
 
-  // Initialize Three.js scene enhancements
+  // Three.js scene setup
   useEffect(() => {
     if (!globeRef.current || isInitialized) return;
-
     const timer = setTimeout(() => {
       try {
         const renderer = globeRef.current?.renderer?.();
-        const scene = globeRef.current?.scene?.();
-        const camera = globeRef.current?.camera?.();
+        const scene    = globeRef.current?.scene?.();
+        const camera   = globeRef.current?.camera?.();
         const controls = globeRef.current?.controls?.();
-
         if (!renderer || !scene || !camera || !controls) return;
 
-        // Clear any existing starfield
         const existing = scene.getObjectByName('starfield');
         if (existing) scene.remove(existing);
         addStarfield(scene);
 
-        // Renderer settings
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(new THREE.Color('#000814'), 1);
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
 
-        // Camera
         camera.far = 5000;
         camera.updateProjectionMatrix();
 
-        // Controls
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.35;
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.minDistance = 120;
-        controls.maxDistance = 600;
+        controls.autoRotate       = true;
+        controls.autoRotateSpeed  = 0.28; // slow, cinematic
+        controls.enableDamping    = true;
+        controls.dampingFactor    = 0.06;
+        controls.minDistance      = 130;
+        controls.maxDistance      = 550;
+        controls.enablePan        = false;
 
         setIsInitialized(true);
-      } catch (e) {
-        // Retry silently
-      }
-    }, 800);
-
+      } catch (_) { /* retry */ }
+    }, 600);
     return () => clearTimeout(timer);
   }, [isInitialized, globeRef.current]);
 
-  // Smooth camera fly-to when country selected
+  // Fly-to on country select
   useEffect(() => {
     if (!selectedCountry || !globeRef.current) return;
-
     const { lat, lng } = selectedCountry;
-    const isIndia = selectedCountry.country === 'India';
-    const altitude = isIndia ? 1.2 : 1.8;
-
+    const altitude = selectedCountry.country === 'India' ? 1.2 : 1.7;
     setTimeout(() => {
       try {
-        globeRef.current?.pointOfView({ lat, lng, altitude }, 1500);
-        // Slow down auto-rotation when a country is selected
+        globeRef.current?.pointOfView({ lat, lng, altitude }, 1400);
         const controls = globeRef.current?.controls?.();
-        if (controls) controls.autoRotateSpeed = 0.1;
-      } catch (e) {}
-    }, 100);
+        if (controls) controls.autoRotateSpeed = 0.08;
+      } catch (_) {}
+    }, 80);
   }, [selectedCountry]);
 
-  // Resume auto-rotation speed when deselected
+  // Resume rotation on deselect
   useEffect(() => {
     if (!selectedCountry && globeRef.current) {
       setTimeout(() => {
         try {
           const controls = globeRef.current?.controls?.();
-          if (controls) controls.autoRotateSpeed = 0.35;
-        } catch (e) {}
-      }, 100);
+          if (controls) controls.autoRotateSpeed = 0.28;
+        } catch (_) {}
+      }, 80);
     }
   }, [selectedCountry]);
 
@@ -162,52 +131,87 @@ export default function GlobeView({ globeData, spreadArcs, onCountrySelect, sele
     onCountrySelect(point as GlobePoint);
   }, [onCountrySelect]);
 
-  const handlePointHover = useCallback((point: object | null) => {
+  const handlePointHover = useCallback((point: object | null, _: object | null, evt?: MouseEvent) => {
     setHoveredPoint(point as GlobePoint | null);
+    if (point && evt) setTooltipPos({ x: evt.clientX, y: evt.clientY });
   }, []);
 
-  // Point label HTML
+  // Refined tooltip HTML — Inter font, executive style
   const pointLabel = useCallback((d: object) => {
     const p = d as GlobePoint;
     const riskColor = getRiskColor(p.risk_score);
-    const riskLabel = p.risk_score > 0.75 ? 'CRITICAL'
-      : p.risk_score > 0.5 ? 'HIGH'
-      : p.risk_score > 0.25 ? 'MODERATE' : 'LOW';
+    const riskEmoji  = p.risk_score > 0.75 ? '🔴' : p.risk_score > 0.5 ? '🟡' : '🟢';
+    const riskLabel  = p.risk_score > 0.75 ? 'Alarming'
+      : p.risk_score > 0.5 ? 'Moderate Risk'
+      : p.risk_score > 0.25 ? 'Low–Moderate' : 'Low Risk';
+    const perCapita = ((p.cases / p.population) * 100000).toFixed(1);
+
     return `
       <div style="
-        background: rgba(0,12,33,0.92);
-        border: 1px solid ${riskColor}40;
-        border-radius: 8px;
-        padding: 10px 14px;
-        font-family: 'JetBrains Mono', monospace;
-        color: #e2e8f0;
-        font-size: 11px;
-        box-shadow: 0 0 20px ${riskColor}30;
-        min-width: 180px;
+        background: rgba(0,8,24,0.96);
+        border: 1px solid ${riskColor}28;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-family: Inter, -apple-system, sans-serif;
+        color: #c8dce8;
+        font-size: 11.5px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 16px ${riskColor}18;
+        min-width: 200px;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
       ">
-        <div style="font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 6px; font-family: 'Orbitron', sans-serif;">
+        <div style="font-size: 14px; font-weight: 500; color: #e8f4ff; margin-bottom: 10px; letter-spacing: 0.01em;">
           ${p.country}
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-          <span style="color: #94a3b8;">Cases:</span>
-          <span style="color: #e2e8f0;">${p.cases.toLocaleString()}</span>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-bottom: 10px;">
+          <div>
+            <div style="font-size: 9px; color: #4a6785; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px;">Cases</div>
+            <div style="font-size: 12px; color: #c0d8e8; font-weight: 400;">${p.cases.toLocaleString()}</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #4a6785; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px;">Per 100K</div>
+            <div style="font-size: 12px; color: #c0d8e8;">${perCapita}</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #4a6785; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px;">Population</div>
+            <div style="font-size: 12px; color: #c0d8e8;">${(p.population / 1e6).toFixed(1)}M</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #4a6785; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 2px;">Risk Score</div>
+            <div style="font-size: 12px; color: ${riskColor}; font-weight: 500;">${(p.risk_score * 100).toFixed(0)}%</div>
+          </div>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-          <span style="color: #94a3b8;">Risk Score:</span>
-          <span style="color: ${riskColor}; font-weight: 700;">${(p.risk_score * 100).toFixed(0)}%</span>
+        <div style="
+          padding: 5px 10px;
+          background: ${riskColor}12;
+          border: 1px solid ${riskColor}20;
+          border-radius: 5px;
+          font-size: 10px;
+          color: ${riskColor};
+          font-weight: 500;
+          letter-spacing: 0.04em;
+        ">
+          ${riskEmoji} ${riskLabel}
         </div>
-        <div style="margin-top: 6px; padding: 3px 8px; background: ${riskColor}20; border-radius: 4px; text-align: center; color: ${riskColor}; font-weight: 700; font-size: 10px; letter-spacing: 0.1em;">
-          ● ${riskLabel} RISK
+        <div style="margin-top: 8px; font-size: 9px; color: #2a4055; letter-spacing: 0.08em; text-align: right;">
+          Click to explore →
         </div>
-        <div style="margin-top: 4px; color: #475569; font-size: 9px; text-align: center;">Click to explore →</div>
       </div>
     `;
   }, []);
 
-  // Arc label
   const arcLabel = useCallback((d: object) => {
     const a = d as SpreadArc;
-    return `<div style="color: #fff; font-size: 10px; font-family: monospace; background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 4px;">Spread intensity: ${(a.intensity * 100).toFixed(0)}%</div>`;
+    return `
+      <div style="
+        background: rgba(0,8,24,0.9); border: 1px solid rgba(0,160,220,0.2);
+        border-radius: 6px; padding: 5px 10px;
+        font-family: Inter, -apple-system, sans-serif;
+        font-size: 10px; color: #8ab0c8; letter-spacing: 0.04em;
+      ">
+        Spread intensity: ${(a.intensity * 100).toFixed(0)}%
+      </div>
+    `;
   }, []);
 
   return (
@@ -218,89 +222,88 @@ export default function GlobeView({ globeData, spreadArcs, onCountrySelect, sele
           width={dimensions.width}
           height={dimensions.height}
 
-          // ── Globe appearance ──────────────────────────────────
+          // ── Textures ──────────────────────────────────────────────
           globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
           bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
           backgroundColor="rgba(0,8,20,1)"
 
-          // ── Atmosphere ────────────────────────────────────────
-          atmosphereColor="#1a6eff"
-          atmosphereAltitude={0.18}
+          // ── Atmosphere ────────────────────────────────────────────
+          atmosphereColor="#1a5fff"
+          atmosphereAltitude={0.15}
 
-          // ── Disease heatmap points ────────────────────────────
+          // ── Points — flat, smooth, low altitude ───────────────────
           pointsData={globeData}
           pointLat="lat"
           pointLng="lng"
           pointColor={(d: object) => getRiskColor((d as GlobePoint).risk_score)}
-          pointAltitude={(d: object) => 0.005 + (d as GlobePoint).risk_score * 0.06}
+          // Very low altitude — points lie flat on the surface, not protruding
+          pointAltitude={(d: object) => 0.001 + (d as GlobePoint).risk_score * 0.012}
           pointRadius={(d: object) => {
             const p = d as GlobePoint;
-            const base = Math.sqrt(p.cases) / 2500;
-            return Math.min(1.8, Math.max(0.3, base));
+            const base = Math.sqrt(p.cases) / 3200;
+            return Math.min(1.2, Math.max(0.18, base));
           }}
           pointLabel={pointLabel}
           onPointClick={handlePointClick}
-          onPointHover={handlePointHover}
+          onPointHover={handlePointHover as any}
           pointsMerge={false}
+          pointResolution={10}
 
-          // ── Spread arcs ───────────────────────────────────────
+          // ── Spread arcs ───────────────────────────────────────────
           arcsData={spreadArcs}
           arcStartLat={(d: object) => (d as SpreadArc).startLat}
           arcStartLng={(d: object) => (d as SpreadArc).startLng}
           arcEndLat={(d: object) => (d as SpreadArc).endLat}
           arcEndLng={(d: object) => (d as SpreadArc).endLng}
           arcColor={(d: object) => (d as SpreadArc).color}
-          arcDashLength={0.35}
-          arcDashGap={0.18}
-          arcDashAnimateTime={2000}
-          arcStroke={(d: object) => 0.3 + (d as SpreadArc).intensity * 0.5}
+          arcDashLength={0.3}
+          arcDashGap={0.2}
+          arcDashAnimateTime={2200}
+          arcStroke={(d: object) => 0.2 + (d as SpreadArc).intensity * 0.35}
           arcLabel={arcLabel}
-          arcAltitudeAutoScale={0.4}
+          arcAltitudeAutoScale={0.35}
 
-          // ── Rings for selected country ────────────────────────
+          // ── Selection rings — subtle ──────────────────────────────
           ringsData={selectedCountry ? [selectedCountry] : []}
           ringLat={(d: object) => (d as GlobePoint).lat}
           ringLng={(d: object) => (d as GlobePoint).lng}
-          ringColor={() => '#00d4ff'}
-          ringMaxRadius={3}
-          ringPropagationSpeed={2.5}
-          ringRepeatPeriod={800}
-
-          // ── Hex polygons ─────────────────────────────────────
-          hexPolygonResolution={3}
-          hexPolygonMargin={0.3}
+          ringColor={() => 'rgba(0,180,255,0.5)'}
+          ringMaxRadius={2.5}
+          ringPropagationSpeed={1.8}
+          ringRepeatPeriod={1000}
         />
       )}
 
-      {/* Hover tooltip overlay */}
-      {hoveredPoint && (
-        <div
-          className="absolute top-4 left-4 glass-strong p-2 pointer-events-none z-10 transition-all"
-          style={{ borderColor: `${getRiskColor(hoveredPoint.risk_score)}40` }}
-        >
-          <p className="text-xs text-slate-400 font-mono">
-            <span className="text-white font-bold">{hoveredPoint.country}</span>
-            {' · '}
-            <span style={{ color: getRiskColor(hoveredPoint.risk_score) }}>
-              {(hoveredPoint.risk_score * 100).toFixed(0)}% risk
-            </span>
-          </p>
-        </div>
-      )}
-
-      {/* Legend */}
+      {/* Refined risk legend */}
       <div className="absolute bottom-4 right-4 z-10">
-        <div className="glass-strong p-2 space-y-1">
-          <p className="text-[9px] text-slate-500 uppercase tracking-widest mb-1.5">Risk Level</p>
+        <div className="glass-strong p-3 space-y-1.5" style={{ minWidth: 148 }}>
+          <p style={{
+            fontSize: '0.5rem', color: '#3a5a78',
+            letterSpacing: '0.2em', textTransform: 'uppercase',
+            fontFamily: 'Inter, sans-serif', fontWeight: 500,
+            marginBottom: '0.5rem',
+          }}>
+            Risk Level
+          </p>
           {[
-            { color: '#22c55e', label: 'Low (< 25%)' },
-            { color: '#eab308', label: 'Moderate (25–50%)' },
-            { color: '#f97316', label: 'High (50–75%)' },
-            { color: '#ef4444', label: 'Critical (> 75%)' },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-              <span className="text-[10px] text-slate-400">{label}</span>
+            { color: '#22c55e', label: 'Low', range: '< 25%' },
+            { color: '#eab308', label: 'Moderate', range: '25–50%' },
+            { color: '#f97316', label: 'High', range: '50–75%' },
+            { color: '#ef4444', label: 'Alarming', range: '> 75%' },
+          ].map(({ color, label, range }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: color,
+                boxShadow: `0 0 5px ${color}80`,
+              }} />
+              <span style={{
+                fontSize: '0.6rem', color: '#7a9ab8',
+                fontFamily: 'Inter, sans-serif',
+              }}>
+                {label}
+                <span style={{ color: '#3a5a78', marginLeft: 4 }}>{range}</span>
+              </span>
             </div>
           ))}
         </div>
