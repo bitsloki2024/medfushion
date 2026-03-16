@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PATHOSENSE — Intelligent Global Disease Surveillance',
-  description: 'Real-time AI-powered pandemic intelligence system with 3D globe visualization, ML forecasting, and anomaly detection.',
-  keywords: ['disease surveillance', 'pandemic intelligence', 'global health', 'outbreak detection'],
+  title: 'CosmoSentinel — Global Disease Intelligence',
+  description: 'Real-time AI-powered global disease intelligence platform with 3D globe visualization, ICD-10/11 classification, genomic associations, ML forecasting, and outbreak detection.',
+  keywords: ['disease surveillance', 'global disease intelligence', 'pandemic intelligence', 'outbreak detection', 'genomics', 'ICD-10', 'epidemiology'],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
