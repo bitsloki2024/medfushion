@@ -62,25 +62,59 @@ COUNTRY_COORDS = {
 }
 
 
-def load_malaria_data() -> pd.DataFrame:
-    """Load WHO malaria reported numbers CSV."""
-    try:
-        df = pd.read_csv(DATA_DIR / "reported_numbers.csv")
-        df = df.rename(columns={
-            "Country": "country", "Year": "year",
-            "No. of cases": "cases", "No. of deaths": "deaths",
-            "WHO Region": "region",
-        })
-        df = df.dropna(subset=["cases"])
-        df["cases"] = pd.to_numeric(df["cases"].astype(str).str.replace(",", ""), errors="coerce").fillna(0).astype(int)
-        df["deaths"] = pd.to_numeric(df["deaths"].astype(str).str.replace(",", ""), errors="coerce").fillna(0).astype(int)
-        return df
-    except Exception as e:
-        logging.warning(f"Could not load malaria CSV: {e}")
-        return pd.DataFrame(columns=["country", "year", "cases", "deaths", "region"])
+def generate_synthetic_disease_data() -> pd.DataFrame:
+    """Generate reproducible synthetic disease surveillance data (no CSV required)."""
+    rng = np.random.default_rng(42)
+
+    # Realistic malaria burden estimates by country (annual cases, approx)
+    BURDEN: dict[str, tuple[int, str]] = {
+        "Nigeria":                            (27_000_000, "AFRO"),
+        "Democratic Republic of the Congo":   (22_000_000, "AFRO"),
+        "Tanzania":                           (7_800_000,  "AFRO"),
+        "Mozambique":                         (11_000_000, "AFRO"),
+        "Uganda":                             (9_500_000,  "AFRO"),
+        "Ghana":                              (5_200_000,  "AFRO"),
+        "Kenya":                              (4_800_000,  "AFRO"),
+        "Ethiopia":                           (5_500_000,  "AFRO"),
+        "Mali":                               (4_200_000,  "AFRO"),
+        "Burkina Faso":                       (6_300_000,  "AFRO"),
+        "Niger":                              (5_800_000,  "AFRO"),
+        "Cameroon":                           (4_400_000,  "AFRO"),
+        "Chad":                               (3_200_000,  "AFRO"),
+        "Angola":                             (8_100_000,  "AFRO"),
+        "Sudan":                              (3_700_000,  "EMRO"),
+        "Malawi":                             (4_800_000,  "AFRO"),
+        "Zambia":                             (3_600_000,  "AFRO"),
+        "South Sudan":                        (2_100_000,  "AFRO"),
+        "Zimbabwe":                           (1_200_000,  "AFRO"),
+        "Rwanda":                             (980_000,    "AFRO"),
+        "India":                              (3_500_000,  "SEARO"),
+        "Indonesia":                          (1_800_000,  "SEARO"),
+        "Myanmar":                            (900_000,    "SEARO"),
+        "Pakistan":                           (520_000,    "EMRO"),
+        "Papua New Guinea":                   (1_100_000,  "WPRO"),
+        "Somalia":                            (800_000,    "EMRO"),
+        "Guinea":                             (2_400_000,  "AFRO"),
+        "Sierra Leone":                       (1_500_000,  "AFRO"),
+        "Senegal":                            (1_200_000,  "AFRO"),
+        "Burundi":                            (1_800_000,  "AFRO"),
+    }
+
+    records = []
+    for year in range(2005, 2024):
+        for country, (base_cases, region) in BURDEN.items():
+            # Slight declining global trend + noise
+            trend   = 1.0 - (year - 2005) * 0.012
+            noise   = float(rng.normal(1.0, 0.14))
+            cases   = max(0, int(base_cases * trend * noise))
+            cfr     = float(rng.uniform(0.002, 0.008))
+            deaths  = max(0, int(cases * cfr))
+            records.append({"country": country, "year": year, "cases": cases, "deaths": deaths, "region": region})
+
+    return pd.DataFrame(records)
 
 
-malaria_df = load_malaria_data()
+malaria_df = generate_synthetic_disease_data()
 
 
 # ─── ML Helpers ───────────────────────────────────────────────────────────────
