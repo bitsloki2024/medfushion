@@ -457,3 +457,179 @@ export const REGIONS = [
   { value: 'Europe',       label: 'Europe' },
   { value: 'Asia-Pacific', label: 'Asia-Pacific' },
 ];
+
+// ─── Disease Classification (ICD-10/11) ───────────────────────────────────────
+export interface DiseaseClassification {
+  icd10: string;
+  icd11: string;
+  fullName: string;
+  taxonomy: string[];
+  subtypes: { code: string; name: string; desc: string }[];
+  mesh: string;
+  snomed: string;
+  doid: string;
+  omim?: string;
+}
+
+export const DISEASE_CLASSIFICATION: Record<DiseaseKey, DiseaseClassification> = {
+  covid: {
+    icd10: 'U07.1', icd11: 'RA01.0',
+    fullName: 'COVID-19, virus identified',
+    taxonomy: ['Diseases of the respiratory system', 'COVID-19', 'SARS-CoV-2 infection'],
+    subtypes: [
+      { code: 'U07.1', name: 'COVID-19 (virus identified)', desc: 'Confirmed by lab test' },
+      { code: 'U07.2', name: 'COVID-19 (virus not identified)', desc: 'Clinical/epidemiological diagnosis' },
+      { code: 'U09.9', name: 'Post-COVID condition', desc: 'Long COVID sequelae' },
+      { code: 'U10.9', name: 'MIS-C', desc: 'Multisystem inflammatory syndrome in children' },
+    ],
+    mesh: 'D000086382', snomed: '840539006', doid: 'DOID:0080600', omim: '—',
+  },
+  malaria: {
+    icd10: 'B54', icd11: '1F40',
+    fullName: 'Malaria (unspecified)',
+    taxonomy: ['Certain infectious and parasitic diseases', 'Protozoal diseases', 'Malaria'],
+    subtypes: [
+      { code: 'B50', name: 'P. falciparum malaria', desc: 'Most severe form; cerebral malaria risk' },
+      { code: 'B51', name: 'P. vivax malaria', desc: 'Relapsing malaria with dormant hypnozoites' },
+      { code: 'B52', name: 'P. malariae malaria', desc: 'Quartan malaria; long incubation' },
+      { code: 'B53.1', name: 'P. ovale malaria', desc: 'Mild relapsing malaria' },
+    ],
+    mesh: 'D008288', snomed: '61462000', doid: 'DOID:12365',
+  },
+  dengue: {
+    icd10: 'A97', icd11: '1D2Z',
+    fullName: 'Dengue fever',
+    taxonomy: ['Certain infectious and parasitic diseases', 'Viral infections', 'Arboviral diseases', 'Dengue'],
+    subtypes: [
+      { code: 'A97.0', name: 'Dengue fever (classical)', desc: 'Self-limiting febrile illness' },
+      { code: 'A97.1', name: 'Dengue haemorrhagic fever', desc: 'Plasma leakage; thrombocytopenia' },
+      { code: 'A97.2', name: 'Severe dengue', desc: 'Organ impairment; shock syndrome' },
+    ],
+    mesh: 'D003715', snomed: '38362002', doid: 'DOID:12205',
+  },
+  flu: {
+    icd10: 'J11', icd11: '1E32',
+    fullName: 'Influenza, virus not identified',
+    taxonomy: ['Diseases of the respiratory system', 'Influenza and pneumonia', 'Influenza'],
+    subtypes: [
+      { code: 'J09', name: 'Influenza A (novel)', desc: 'Novel subtype; pandemic potential' },
+      { code: 'J10', name: 'Influenza A/B (identified)', desc: 'Seasonal strains H1N1/H3N2/B' },
+      { code: 'J11', name: 'Influenza (unspecified)', desc: 'Clinical diagnosis without lab ID' },
+    ],
+    mesh: 'D007251', snomed: '6142004', doid: 'DOID:8469',
+  },
+  tb: {
+    icd10: 'A15', icd11: '1B10',
+    fullName: 'Respiratory tuberculosis, bacteriologically confirmed',
+    taxonomy: ['Certain infectious and parasitic diseases', 'Tuberculosis', 'Pulmonary TB'],
+    subtypes: [
+      { code: 'A15', name: 'Pulmonary TB (confirmed)', desc: 'Bacteriologically confirmed by sputum/culture' },
+      { code: 'A16', name: 'Pulmonary TB (not confirmed)', desc: 'Clinical/radiological diagnosis' },
+      { code: 'A17', name: 'TB of nervous system', desc: 'Tuberculous meningitis; encephalitis' },
+      { code: 'A19', name: 'Miliary tuberculosis', desc: 'Haematogenous dissemination; high mortality' },
+    ],
+    mesh: 'D014376', snomed: '56717001', doid: 'DOID:399', omim: '607948',
+  },
+};
+
+// ─── Genomic Associations ─────────────────────────────────────────────────────
+export interface GeneAssociation {
+  symbol: string;
+  fullName: string;
+  evidenceScore: number; // 0–1
+  associationType: string;
+  source: string;
+  omimId?: string;
+  chromosome: string;
+  function: string;
+}
+
+export const DISEASE_GENES: Record<DiseaseKey, GeneAssociation[]> = {
+  covid: [
+    { symbol: 'ACE2',    fullName: 'Angiotensin Converting Enzyme 2',     evidenceScore: 0.98, associationType: 'Viral entry receptor',    source: 'Open Targets', chromosome: 'Xp22.2',  function: 'SARS-CoV-2 spike binding' },
+    { symbol: 'TMPRSS2', fullName: 'Transmembrane Serine Protease 2',     evidenceScore: 0.95, associationType: 'Host protease',           source: 'Open Targets', chromosome: '21q22.3', function: 'Spike protein priming' },
+    { symbol: 'TLR7',    fullName: 'Toll-Like Receptor 7',                evidenceScore: 0.87, associationType: 'Innate immunity',         source: 'OMIM',         chromosome: 'Xp22.2',  omimId: '300365', function: 'Viral RNA sensing' },
+    { symbol: 'IFITM3',  fullName: 'Interferon Induced Transmembrane Protein 3', evidenceScore: 0.82, associationType: 'Antiviral defense', source: 'GWAS',     chromosome: '11p15.5', function: 'Blocks viral fusion' },
+    { symbol: 'OAS1',    fullName: '2\'-5\'-Oligoadenylate Synthetase 1', evidenceScore: 0.79, associationType: 'Interferon pathway',      source: 'GWAS',         chromosome: '12q24.1', function: 'Activates RNase L antiviral' },
+    { symbol: 'LZTFL1',  fullName: 'Leucine Zipper Transcription Factor 1',evidenceScore: 0.76, associationType: 'Risk locus',            source: 'GWAS',         chromosome: '3p21.3',  function: 'Severe COVID-19 risk' },
+  ],
+  malaria: [
+    { symbol: 'HBB',   fullName: 'Hemoglobin Subunit Beta',              evidenceScore: 0.97, associationType: 'Protective variant',  source: 'OMIM', chromosome: '11p15.4', omimId: '141900', function: 'Sickle-cell protects against P. falciparum' },
+    { symbol: 'G6PD',  fullName: 'Glucose-6-Phosphate Dehydrogenase',   evidenceScore: 0.93, associationType: 'Protective variant',  source: 'OMIM', chromosome: 'Xq28',    omimId: '305900', function: 'G6PD deficiency confers resistance' },
+    { symbol: 'DARC',  fullName: 'Duffy Antigen Receptor for Chemokines',evidenceScore: 0.91, associationType: 'Receptor / resistance',source: 'OMIM', chromosome: '1q23.2', omimId: '110700', function: 'P. vivax invasion receptor' },
+    { symbol: 'CR1',   fullName: 'Complement Receptor 1',               evidenceScore: 0.85, associationType: 'Susceptibility',     source: 'Open Targets', chromosome: '1q32.2', function: 'Rosetting and cerebral malaria' },
+    { symbol: 'FCGR2B',fullName: 'Fc Gamma Receptor IIb',               evidenceScore: 0.78, associationType: 'Immune modulation',  source: 'GWAS', chromosome: '1q23.3', function: 'Antibody-mediated protection' },
+    { symbol: 'IL12B', fullName: 'Interleukin 12 Subunit Beta',          evidenceScore: 0.72, associationType: 'Cytokine response', source: 'Open Targets', chromosome: '5q33.3', function: 'Th1 immune polarization' },
+  ],
+  dengue: [
+    { symbol: 'CD209',  fullName: 'CD209 Molecule (DC-SIGN)',            evidenceScore: 0.94, associationType: 'Viral entry receptor',source: 'Open Targets', chromosome: '19p13.2', function: 'Dengue virus attachment to DCs' },
+    { symbol: 'PLCE1',  fullName: 'Phospholipase C Epsilon 1',           evidenceScore: 0.86, associationType: 'Vascular permeability',source: 'GWAS',        chromosome: '10q23.3', function: 'DHF plasma leakage mechanism' },
+    { symbol: 'STAT4',  fullName: 'Signal Transducer and Activator 4',   evidenceScore: 0.81, associationType: 'Immune response',   source: 'GWAS',         chromosome: '2q32.2',  function: 'IFN-γ production; severe dengue' },
+    { symbol: 'MICA',   fullName: 'MHC Class I Polypeptide-Related Seq A',evidenceScore: 0.77, associationType: 'Innate immunity',  source: 'GWAS',         chromosome: '6p21.3',  function: 'NK cell activation' },
+    { symbol: 'TNF',    fullName: 'Tumor Necrosis Factor',               evidenceScore: 0.74, associationType: 'Cytokine storm',   source: 'Open Targets', chromosome: '6p21.3',  function: 'Inflammatory cascade in DHF' },
+  ],
+  flu: [
+    { symbol: 'IFITM3', fullName: 'Interferon Induced Transmembrane Protein 3', evidenceScore: 0.93, associationType: 'Severe disease risk', source: 'GWAS', chromosome: '11p15.5', function: 'Restricts influenza replication' },
+    { symbol: 'TMPRSS2',fullName: 'Transmembrane Serine Protease 2',     evidenceScore: 0.88, associationType: 'Host protease',    source: 'Open Targets', chromosome: '21q22.3', function: 'HA cleavage for cell entry' },
+    { symbol: 'MX1',    fullName: 'MX Dynamin-Like GTPase 1',           evidenceScore: 0.85, associationType: 'Antiviral defense',source: 'Open Targets', chromosome: '21q22.3', function: 'Interferon-induced viral restriction' },
+    { symbol: 'IRF7',   fullName: 'Interferon Regulatory Factor 7',     evidenceScore: 0.80, associationType: 'Innate antiviral', source: 'OMIM',         chromosome: '11p15.5', omimId: '605047', function: 'Master regulator of type I IFN' },
+    { symbol: 'FCGR2A', fullName: 'Fc Gamma Receptor IIa',              evidenceScore: 0.72, associationType: 'Antibody response',source: 'GWAS',         chromosome: '1q23.3',  function: 'Influenza-specific Ab binding' },
+  ],
+  tb: [
+    { symbol: 'SLC11A1',fullName: 'Solute Carrier Family 11 Member 1',  evidenceScore: 0.95, associationType: 'Macrophage resistance', source: 'OMIM', chromosome: '2q35',    omimId: '600266', function: 'Phagocyte iron transport; TB susceptibility' },
+    { symbol: 'HLA-DRB1',fullName: 'HLA Class II Histocompatibility DR Beta 1',evidenceScore: 0.90, associationType: 'Immune presentation', source: 'OMIM', chromosome: '6p21.3', omimId: '142857', function: 'MHC-II TB antigen presentation' },
+    { symbol: 'VDR',    fullName: 'Vitamin D Receptor',                 evidenceScore: 0.86, associationType: 'Immune modulation', source: 'Open Targets', chromosome: '12q13.1', function: 'Vitamin D–mediated TB defense' },
+    { symbol: 'IL12B',  fullName: 'Interleukin 12 Subunit Beta',        evidenceScore: 0.82, associationType: 'Cytokine deficiency',source: 'OMIM',        chromosome: '5q33.3',  omimId: '161561', function: 'IL-12 pathway; Mendelian susceptibility' },
+    { symbol: 'IRGM',   fullName: 'Immunity Related GTPase M',          evidenceScore: 0.78, associationType: 'Autophagy',         source: 'GWAS',         chromosome: '5q33.1',  function: 'Mycobacterial autophagy clearance' },
+    { symbol: 'NOD2',   fullName: 'Nucleotide Binding Oligomerization 2',evidenceScore: 0.73, associationType: 'Pattern recognition',source: 'Open Targets', chromosome: '16q12.1', function: 'Innate sensing of mycobacterial MDP' },
+  ],
+};
+
+// ─── Therapeutic / Drug Data ──────────────────────────────────────────────────
+export interface DrugInfo {
+  name: string;
+  genericName: string;
+  mechanism: string;
+  whoEssential: boolean;
+  line: 'First' | 'Second' | 'Third';
+  pubchemCID: number;
+  approvedYear: number;
+  route: string;
+}
+
+export const DISEASE_DRUGS: Record<DiseaseKey, DrugInfo[]> = {
+  covid: [
+    { name: 'Paxlovid (Nirmatrelvir/Ritonavir)', genericName: 'Nirmatrelvir',  mechanism: '3CL protease inhibitor — blocks viral polyprotein cleavage',          whoEssential: false, line: 'First',  pubchemCID: 145996610, approvedYear: 2021, route: 'Oral' },
+    { name: 'Remdesivir',                         genericName: 'Remdesivir',    mechanism: 'RNA-dependent RNA polymerase inhibitor — premature chain termination', whoEssential: false, line: 'First',  pubchemCID: 121304016, approvedYear: 2020, route: 'IV Infusion' },
+    { name: 'Dexamethasone',                      genericName: 'Dexamethasone', mechanism: 'Corticosteroid — suppresses cytokine storm and inflammation',           whoEssential: true,  line: 'First',  pubchemCID: 5743,      approvedYear: 1958, route: 'IV / Oral' },
+    { name: 'Molnupiravir',                       genericName: 'Molnupiravir',  mechanism: 'Nucleoside analogue — induces RNA mutagenesis in replicating virus',    whoEssential: false, line: 'Second', pubchemCID: 2761788,   approvedYear: 2021, route: 'Oral' },
+    { name: 'Tocilizumab',                        genericName: 'Tocilizumab',   mechanism: 'IL-6 receptor antagonist — reduces hyperinflammation in severe disease', whoEssential: false, line: 'Second', pubchemCID: 0,        approvedYear: 2021, route: 'IV Infusion' },
+  ],
+  malaria: [
+    { name: 'Artemether-Lumefantrine', genericName: 'Artemether/Lumefantrine', mechanism: 'Artemisinin derivative + blood schizonticide — rapidly clears parasitemia', whoEssential: true, line: 'First',  pubchemCID: 68911,   approvedYear: 1999, route: 'Oral' },
+    { name: 'Artesunate (IV)',          genericName: 'Artesunate',              mechanism: 'Artemisinin analogue — rapid parasite killing; preferred for severe malaria', whoEssential: true, line: 'First',  pubchemCID: 5490342, approvedYear: 2007, route: 'IV/IM' },
+    { name: 'Chloroquine',             genericName: 'Chloroquine',             mechanism: 'Heme polymerization inhibitor — accumulates in parasite food vacuole',       whoEssential: true, line: 'First',  pubchemCID: 2719,    approvedYear: 1947, route: 'Oral' },
+    { name: 'Primaquine',              genericName: 'Primaquine',              mechanism: '8-aminoquinoline — eliminates hypnozoites; radical cure of P. vivax',        whoEssential: true, line: 'Second', pubchemCID: 4908,    approvedYear: 1952, route: 'Oral' },
+    { name: 'Quinine + Doxycycline',   genericName: 'Quinine sulfate',         mechanism: 'Alkaloid schizonticide + protein synthesis inhibitor synergy',              whoEssential: true, line: 'Second', pubchemCID: 3034034, approvedYear: 1944, route: 'Oral' },
+  ],
+  dengue: [
+    { name: 'Dengvaxia (Vaccine)',     genericName: 'CYD-TDV',              mechanism: 'Tetravalent live attenuated chimeric vaccine — activates humoral immunity',   whoEssential: false, line: 'First',  pubchemCID: 0,     approvedYear: 2015, route: 'Subcutaneous' },
+    { name: 'Paracetamol',            genericName: 'Acetaminophen',         mechanism: 'COX inhibitor — antipyretic; preferred over NSAIDs to avoid bleeding risk',   whoEssential: true,  line: 'First',  pubchemCID: 1983,  approvedYear: 1955, route: 'Oral' },
+    { name: 'IV Fluid Resuscitation', genericName: 'Crystalloid / Colloid',  mechanism: 'Plasma volume replacement — counteracts vascular leakage in DHF',           whoEssential: true,  line: 'First',  pubchemCID: 0,     approvedYear: 1960, route: 'IV Infusion' },
+    { name: 'Ibuprofen (AVOID)',       genericName: 'Ibuprofen',             mechanism: 'NSAID — CONTRAINDICATED in dengue; increases hemorrhage risk',               whoEssential: false, line: 'Third',  pubchemCID: 3672,  approvedYear: 1961, route: 'Oral (avoided)' },
+  ],
+  flu: [
+    { name: 'Oseltamivir (Tamiflu)',  genericName: 'Oseltamivir',  mechanism: 'Neuraminidase inhibitor — prevents viral release and spread between cells',           whoEssential: true,  line: 'First',  pubchemCID: 65028,   approvedYear: 1999, route: 'Oral' },
+    { name: 'Zanamivir (Relenza)',    genericName: 'Zanamivir',    mechanism: 'Inhaled neuraminidase inhibitor — high local concentration in respiratory tract',     whoEssential: false, line: 'First',  pubchemCID: 60855,   approvedYear: 1999, route: 'Inhaled' },
+    { name: 'Baloxavir Marboxil',     genericName: 'Baloxavir',    mechanism: 'Cap-dependent endonuclease inhibitor — blocks viral mRNA synthesis',                  whoEssential: false, line: 'First',  pubchemCID: 49803313,approvedYear: 2018, route: 'Oral' },
+    { name: 'Peramivir',              genericName: 'Peramivir',    mechanism: 'IV neuraminidase inhibitor — for hospitalized patients unable to take oral drugs',    whoEssential: false, line: 'Second', pubchemCID: 154234,  approvedYear: 2014, route: 'IV Infusion' },
+  ],
+  tb: [
+    { name: 'Isoniazid (H)',           genericName: 'Isoniazid',    mechanism: 'Inhibits mycolic acid synthesis — bactericidal against actively dividing mycobacteria', whoEssential: true, line: 'First',  pubchemCID: 3767,  approvedYear: 1952, route: 'Oral/IM' },
+    { name: 'Rifampicin (R)',          genericName: 'Rifampicin',   mechanism: 'RNA polymerase inhibitor — inhibits bacterial transcription initiation',              whoEssential: true, line: 'First',  pubchemCID: 5360416,approvedYear: 1967, route: 'Oral' },
+    { name: 'Pyrazinamide (Z)',        genericName: 'Pyrazinamide', mechanism: 'Disrupts membrane potential — bactericidal in acidic environment of macrophages',    whoEssential: true, line: 'First',  pubchemCID: 1046,  approvedYear: 1954, route: 'Oral' },
+    { name: 'Ethambutol (E)',          genericName: 'Ethambutol',   mechanism: 'Arabinogalactan synthesis inhibitor — prevents cell wall assembly',                  whoEssential: true, line: 'First',  pubchemCID: 14052, approvedYear: 1961, route: 'Oral' },
+    { name: 'Bedaquiline',             genericName: 'Bedaquiline',  mechanism: 'ATP synthase inhibitor — bactericidal for drug-resistant TB strains',               whoEssential: true, line: 'Second', pubchemCID: 5388906,approvedYear: 2012, route: 'Oral' },
+    { name: 'Linezolid',              genericName: 'Linezolid',    mechanism: 'Ribosomal 23S rRNA binding — inhibits protein synthesis in XDR-TB',                whoEssential: false, line: 'Second', pubchemCID: 441401, approvedYear: 2000, route: 'Oral/IV' },
+  ],
+};
