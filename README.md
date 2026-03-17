@@ -217,6 +217,14 @@ http://localhost:8000/docs
 ---
 
 ## Team
+**Aurora Labs**
+
+Members-
+Amrutha Kola
+Rishika Redd 
+Shruti Anubolu
+Yamini Ceeba
+
 
 **CosmoSentinel** — Disease Surveillance Backend
 Built for real-world epidemiological data integration with production ML pipelines.
