@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CosmoSentinel — Backend Architecture Flowchart</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #040c18;
+    color: #c8dff0;
+    min-height: 100vh;
+    padding: 48px 32px 64px;
+  }
+
+  /* ── HEADER ── */
+  .header { text-align:center; margin-bottom: 52px; }
+  .header h1 {
+    font-size: 1.6rem; font-weight: 700; letter-spacing: 0.06em;
+    color: #fff; margin-bottom: 6px;
+  }
+  .header h1 span { color: #38bdf8; }
+  .header p { font-size: 0.72rem; color: #334e68; letter-spacing: 0.2em; text-transform: uppercase; }
+
+  /* ── FLOWCHART WRAPPER ── */
+  .flow {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 0.52rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #1e4060;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  /* ── NODE BASE ── */
+  .node {
+    border-radius: 10px;
+    border: 1.5px solid;
+    padding: 14px 22px;
+    text-align: center;
+    position: relative;
+  }
+  .node .title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 3px;
+  }
+  .node .desc {
+    font-size: 0.58rem;
+    line-height: 1.6;
+    opacity: 0.75;
+  }
+
+  /* ── NODE COLORS ── */
+  .n-browser  { background: rgba(30,50,80,0.5);   border-color: rgba(80,140,200,0.3);  color:#a0c8e8; min-width:200px; }
+  .n-server   { background: rgba(0,60,140,0.18);  border-color: rgba(0,160,255,0.4);  color:#60c8f0; min-width:320px;
+                box-shadow: 0 0 30px rgba(0,120,255,0.12); }
+  .n-config   { background: rgba(20,40,70,0.3);   border-color: rgba(50,100,160,0.25); color:#7890b0; min-width:280px; }
+  .n-src      { background: rgba(10,30,60,0.35);  border-color: rgba(40,100,180,0.2); color:#8ab0d0; }
+  .n-ml       { background: rgba(60,20,100,0.2);  border-color: rgba(140,60,240,0.3); color:#c090f0; }
+  .n-cache    { background: rgba(10,30,20,0.3);   border-color: rgba(40,160,80,0.25); color:#60c890; }
+  .n-ext      { background: rgba(5,20,10,0.4);    border-color: rgba(30,120,60,0.2);  color:#50a870; }
+
+  /* ── ARROW ── */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 4px 0;
+  }
+  .arrow-line { width: 2px; height: 28px; background: #0e2840; }
+  .arrow-head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 9px solid #0e2840;
+  }
+  .arrow-text {
+    font-size: 0.46rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #1a3a5a; margin-top: 3px;
+  }
+
+  /* ── WIDE ARROW (labeled) ── */
+  .arrow-wide { margin: 0; }
+  .arrow-wide .arrow-line { height: 24px; }
+
+  /* ── ROW OF NODES ── */
+  .row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* ── SOURCE CARD ── */
+  .src-card {
+    flex: 1;
+    border-radius: 8px;
+    border: 1px solid rgba(40,90,160,0.2);
+    background: rgba(8,20,45,0.6);
+    padding: 10px 10px 8px;
+    min-width: 0;
+    text-align: center;
+  }
+  .src-card .src-name {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+    margin-bottom: 3px;
+  }
+  .src-card .src-detail {
+    font-size: 0.46rem; line-height: 1.55; opacity: 0.6;
+  }
+  .src-card .src-tag {
+    display: inline-block;
+    font-size: 0.4rem; letter-spacing: 0.18em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 3px; margin-bottom: 5px;
+    font-weight: 600;
+  }
+  .src-card .ttl {
+    font-size: 0.43rem; color: #1d6040; margin-top: 5px;
+    letter-spacing: 0.12em;
+  }
+
+  /* Source color themes */
+  .s-blue  { color:#60b8e8; border-color:rgba(0,120,220,0.25) !important; background:rgba(0,40,100,0.3) !important; }
+  .s-blue .src-tag  { background:rgba(0,120,220,0.15); color:#50a8d8; }
+  .s-green { color:#40d888; border-color:rgba(0,180,100,0.25) !important; background:rgba(0,50,30,0.3) !important; }
+  .s-green .src-tag { background:rgba(0,180,100,0.15); color:#30c878; }
+  .s-orange{ color:#e09050; border-color:rgba(220,110,20,0.25) !important; background:rgba(50,20,0,0.3) !important; }
+  .s-orange .src-tag{ background:rgba(220,110,20,0.15); color:#d08040; }
+  .s-teal  { color:#40d8d8; border-color:rgba(0,180,180,0.25) !important; background:rgba(0,40,50,0.3) !important; }
+  .s-teal .src-tag  { background:rgba(0,180,180,0.15); color:#30c8c8; }
+  .s-yellow{ color:#d8b840; border-color:rgba(200,160,0,0.25) !important; background:rgba(40,30,0,0.3) !important; }
+  .s-yellow .src-tag{ background:rgba(200,160,0,0.15); color:#c8a830; }
+  .s-red   { color:#e06060; border-color:rgba(200,50,50,0.25) !important; background:rgba(50,5,5,0.3) !important; }
+  .s-red .src-tag   { background:rgba(200,50,50,0.15); color:#d05050; }
+  .s-purple{ color:#c080f0; border-color:rgba(150,60,240,0.25) !important; background:rgba(30,5,60,0.3) !important; }
+  .s-purple .src-tag{ background:rgba(150,60,240,0.15); color:#b070e0; }
+  .s-teal2 { color:#40c8b8; border-color:rgba(0,160,150,0.25) !important; background:rgba(0,35,45,0.3) !important; }
+  .s-teal2 .src-tag { background:rgba(0,160,150,0.15); color:#30b8a8; }
+
+  /* ── ML CARDS ── */
+  .ml-card {
+    flex: 1; min-width: 0;
+    border-radius: 8px;
+    border: 1px solid rgba(140,60,240,0.25);
+    background: rgba(30,8,60,0.4);
+    padding: 10px 10px 8px;
+    text-align: center;
+    color: #c090f0;
+  }
+  .ml-card .ml-name { font-size: 0.62rem; font-weight: 700; margin-bottom: 2px; }
+  .ml-card .ml-algo { font-size: 0.5rem; color: #8050c0; margin-bottom: 4px; }
+  .ml-card .ml-io   { font-size: 0.44rem; color: #5a3088; line-height: 1.55; }
+
+  /* ── DECISION DIAMOND ── */
+  .diamond-wrapper { display:flex; flex-direction:column; align-items:center; }
+  .diamond {
+    width: 160px; height: 60px;
+    background: rgba(20,50,90,0.4);
+    border: 1.5px solid rgba(0,120,200,0.3);
+    border-radius: 4px;
+    transform: rotate(-3deg) skewX(3deg);
+    display: flex; align-items: center; justify-content: center;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    width: 200px; height: 72px;
+  }
+  .diamond-inner {
+    transform: none;
+    font-size: 0.6rem; font-weight: 700; color: #60b8f0;
+    letter-spacing: 0.06em; text-align: center;
+  }
+
+  /* ── RESPONSE BOX ── */
+  .response-box {
+    border-radius: 8px;
+    border: 1.5px solid rgba(0,200,120,0.3);
+    background: rgba(0,50,30,0.3);
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 260px;
+  }
+  .response-box .title { font-size: 0.72rem; font-weight: 700; color: #40e0a0; margin-bottom: 4px; }
+  .response-box .schema { font-size: 0.5rem; color: #205040; font-family: 'SF Mono', monospace; line-height: 1.6; }
+
+  /* ── BRACKET LINE ── */
+  .bracket {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin: 2px 0;
+  }
+  .bracket-line {
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #0d2035 20%, #0d2035 80%, transparent);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    max-width: 960px; margin: 48px auto 0;
+    padding-top: 24px;
+    border-top: 1px solid #0a1e32;
+    display: flex;
+    gap: 20px; flex-wrap: wrap; justify-content: center;
+  }
+  .badge {
+    font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid #0e2840; color: #1e4060;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>CosmoSentinel</span> — Backend Architecture</h1>
+  <p>Real-Time Global Disease Intelligence · FastAPI + 8 Data Sources + 3 ML Models</p>
+</div>
+
+<div class="flow">
+
+  <!-- ══ STEP 1: USER ══ -->
+  <div class="section-label">Step 1 — User Makes a Request</div>
+  <div class="node n-browser" style="min-width:280px;">
+    <div class="title">🌐 Browser / Frontend</div>
+    <div class="desc">Next.js app at localhost:3000<br>User selects a disease (COVID, Malaria, Flu, TB, Dengue) and clicks a country</div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">HTTP GET request</div>
+  </div>
+
+  <!-- ══ STEP 2: FASTAPI ══ -->
+  <div class="section-label">Step 2 — FastAPI Receives &amp; Routes the Request</div>
+  <div class="node n-server" style="min-width:500px;">
+    <div class="title">⚡ FastAPI — main.py (Port 8000)</div>
+    <div class="desc">
+      Uvicorn ASGI server · Async Python · Pydantic validation · Auto-generated /docs
+    </div>
+    <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/health</span>
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/globe/heatmap?disease=</span>
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/country/stats</span>
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/forecast</span>
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/risk/score</span>
+      <span style="font-size:0.46rem; padding:3px 8px; border-radius:4px; background:rgba(0,100,200,0.12); border:1px solid rgba(0,100,200,0.2); color:#3a80c0;">/alerts</span>
+    </div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">reads constants, coordinates, API URLs</div>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="node n-config" style="min-width:420px;">
+    <div class="title" style="font-size:0.68rem; color:#7898b8;">📋 config.py — Single Source of Truth</div>
+    <div class="desc">140+ country coordinates · WHO indicator codes · CDC dataset IDs · API base URLs · Cache TTLs</div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="height:36px;"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">calls the right data module based on disease</div>
+  </div>
+
+  <!-- ══ STEP 3: DATA SOURCES ══ -->
+  <div class="section-label" style="margin-bottom:14px;">Step 3 — Data Sources Layer (data_sources/ folder · 8 modules)</div>
+  <div class="row" style="align-items:flex-start;">
+
+    <div class="src-card s-blue">
+      <div class="src-tag">COVID · FLU</div>
+      <div class="src-name">disease_sh.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> GET disease.sh/v3/<br>
+        <strong>Output:</strong> 200+ countries<br>
+        cases, deaths, active<br>
+        No API key needed
+      </div>
+      <div class="ttl">⏱ Cache: 1 hr</div>
+    </div>
+
+    <div class="src-card s-green">
+      <div class="src-tag">MALARIA · TB · DENGUE</div>
+      <div class="src-name">who_gho.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> WHO OData API<br>
+        <strong>Output:</strong> 190+ countries<br>
+        historical + latest year<br>
+        WHO indicator codes
+      </div>
+      <div class="ttl">⏱ Cache: 24 hr</div>
+    </div>
+
+    <div class="src-card s-orange">
+      <div class="src-tag">US DATA</div>
+      <div class="src-name">cdc.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> CDC Socrata API<br>
+        <strong>Output:</strong> US COVID deaths<br>
+        weekly ILI %<br>
+        Free public API
+      </div>
+      <div class="ttl">⏱ Cache: 24 hr</div>
+    </div>
+
+    <div class="src-card s-teal">
+      <div class="src-tag">EUROPE</div>
+      <div class="src-name">ecdc.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> ECDC CSV download<br>
+        <strong>Output:</strong> EU/EEA countries<br>
+        COVID + Flu weekly<br>
+        pandas processing
+      </div>
+      <div class="ttl">⏱ Cache: 24 hr</div>
+    </div>
+
+    <div class="src-card s-yellow">
+      <div class="src-tag">US FLU RSS</div>
+      <div class="src-name">fluview.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> CDC FluView RSS<br>
+        <strong>Output:</strong> weekly ILI %<br>
+        flu positivity rate<br>
+        feedparser XML
+      </div>
+      <div class="ttl">⏱ Cache: 1 hr</div>
+    </div>
+
+    <div class="src-card s-red">
+      <div class="src-tag">OUTBREAK ALERTS</div>
+      <div class="src-name">promed.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> CDC MMWR RSS<br>
+        <strong>Output:</strong> 30 live alerts<br>
+        disease + severity<br>
+        keyword NLP
+      </div>
+      <div class="ttl">⏱ Cache: 1 hr</div>
+    </div>
+
+    <div class="src-card s-purple">
+      <div class="src-tag">INDIA BURDEN</div>
+      <div class="src-name">ihme.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> local CSV file<br>
+        <strong>Output:</strong> India 2010–2023<br>
+        all 5 diseases<br>
+        IHME GBD data
+      </div>
+      <div class="ttl">⏱ Permanent</div>
+    </div>
+
+    <div class="src-card s-teal2">
+      <div class="src-tag">REAL-TIME ALERTS</div>
+      <div class="src-name">healthmap.py</div>
+      <div class="src-detail">
+        <strong>Input:</strong> HealthMap API<br>
+        <strong>Output:</strong> global geo-alerts<br>
+        location + disease<br>
+        silent fail safe
+      </div>
+      <div class="ttl">⏱ Cache: 1 hr</div>
+    </div>
+
+  </div>
+
+  <div class="arrow" style="margin-top:8px;">
+    <div class="arrow-line" style="height:28px; background:#0d1e34;"></div>
+    <div class="arrow-head" style="border-top-color:#0d1e34;"></div>
+    <div class="arrow-text">all data normalized to same format → {country, lat, lng, cases, deaths, risk_score}</div>
+  </div>
+
+  <!-- ══ STEP 4: CACHE ══ -->
+  <div class="section-label">Step 4 — Local Cache (cache/ folder)</div>
+  <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:4px;">
+    <div style="border-radius:6px; border:1px solid rgba(40,160,80,0.2); background:rgba(0,40,20,0.3); padding:8px 14px; text-align:center; min-width:120px;">
+      <div style="font-size:0.58rem; font-weight:700; color:#40c870;">disease_sh.json</div>
+      <div style="font-size:0.44rem; color:#1a4030; margin-top:2px;">TTL: 1 hour</div>
+    </div>
+    <div style="border-radius:6px; border:1px solid rgba(40,160,80,0.2); background:rgba(0,40,20,0.3); padding:8px 14px; text-align:center; min-width:120px;">
+      <div style="font-size:0.58rem; font-weight:700; color:#40c870;">who_gho.json</div>
+      <div style="font-size:0.44rem; color:#1a4030; margin-top:2px;">TTL: 24 hours</div>
+    </div>
+    <div style="border-radius:6px; border:1px solid rgba(40,160,80,0.2); background:rgba(0,40,20,0.3); padding:8px 14px; text-align:center; min-width:120px;">
+      <div style="font-size:0.58rem; font-weight:700; color:#40c870;">ecdc.json</div>
+      <div style="font-size:0.44rem; color:#1a4030; margin-top:2px;">TTL: 24 hours</div>
+    </div>
+    <div style="border-radius:6px; border:1px solid rgba(40,160,80,0.2); background:rgba(0,40,20,0.3); padding:8px 14px; text-align:center; min-width:120px;">
+      <div style="font-size:0.58rem; font-weight:700; color:#40c870;">promed.json</div>
+      <div style="font-size:0.44rem; color:#1a4030; margin-top:2px;">TTL: 1 hour</div>
+    </div>
+    <div style="border-radius:6px; border:1px solid rgba(150,60,240,0.2); background:rgba(30,5,60,0.3); padding:8px 14px; text-align:center; min-width:120px;">
+      <div style="font-size:0.58rem; font-weight:700; color:#c080f0;">ihme_india.csv</div>
+      <div style="font-size:0.44rem; color:#4a2070; margin-top:2px;">Permanent on disk</div>
+    </div>
+  </div>
+  <div style="font-size:0.46rem; color:#1a3050; letter-spacing:0.14em; text-align:center; margin-bottom:4px;">
+    Cache miss → live API call · Cache hit → instant response · Works offline during demo
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="height:28px;"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">raw data passed to ML pipeline</div>
+  </div>
+
+  <!-- ══ STEP 5: ML ══ -->
+  <div class="section-label">Step 5 — Machine Learning Layer (ml/ folder)</div>
+  <div class="row" style="max-width:700px; gap:12px;">
+
+    <div class="ml-card">
+      <div class="ml-name">🔍 anomaly.py</div>
+      <div class="ml-algo">IsolationForest (scikit-learn)</div>
+      <div class="ml-io">
+        <strong>Why:</strong> Non-parametric · handles non-normal distributions<br>
+        <strong>Input:</strong> case counts time series<br>
+        <strong>Output:</strong> bool[] — True = epidemic spike or data gap
+      </div>
+    </div>
+
+    <div class="ml-card">
+      <div class="ml-name">📈 forecast.py</div>
+      <div class="ml-algo">Prophet (primary) → LinearRegression (fallback)</div>
+      <div class="ml-io">
+        <strong>Why Prophet:</strong> Handles seasonality + missing data<br>
+        <strong>Input:</strong> historical years + case counts<br>
+        <strong>Output:</strong> predicted cases ± confidence bounds
+      </div>
+    </div>
+
+    <div class="ml-card">
+      <div class="ml-name">⚠️ risk.py</div>
+      <div class="ml-algo">Risk Formula + K-Means (k=3)</div>
+      <div class="ml-io">
+        <strong>Score = </strong>prevalence(40) + growth(40) + burden(20)<br>
+        <strong>Labels:</strong> LOW / MODERATE / HIGH / CRITICAL<br>
+        <strong>KMeans:</strong> clusters countries by risk tier
+      </div>
+    </div>
+
+  </div>
+
+  <div class="arrow" style="margin-top:8px;">
+    <div class="arrow-line" style="height:28px;"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">enriched data → JSON response</div>
+  </div>
+
+  <!-- ══ STEP 6: RESPONSE ══ -->
+  <div class="section-label">Step 6 — JSON Response Sent Back</div>
+  <div class="response-box">
+    <div class="title">✅ JSON Array — Heatmap Points</div>
+    <div class="schema">
+      [ { "country": "Nigeria",  "lat": 9.08, "lng": 8.68,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;"cases": 68466353,  "deaths": 0,  "population": 213401323,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;"risk_score": 0.304,  "source": "WHO GHO — malaria",<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;"anomaly_flags": [false, false, true ...],<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;"forecast": { "years": [2025,2026], "predicted": [...] } }, ... ]
+    </div>
+  </div>
+
+  <div class="arrow">
+    <div class="arrow-line" style="height:28px;"></div>
+    <div class="arrow-head"></div>
+    <div class="arrow-text">frontend renders on 3D globe</div>
+  </div>
+
+  <!-- ══ STEP 7: GLOBE ══ -->
+  <div class="node n-browser" style="min-width:320px;">
+    <div class="title">🌍 3D Globe — Rendered in Browser</div>
+    <div class="desc">react-globe.gl renders data points · click country → side panel<br>Trend chart · Anomaly flags · Forecast curve · Risk score badge</div>
+  </div>
+
+</div><!-- end flow -->
+
+<!-- ── EXTERNAL APIS STRIP ── -->
+<div style="max-width:960px; margin: 48px auto 0; padding-top:28px; border-top:1px solid #0a1e32;">
+  <div class="section-label" style="margin-bottom:16px;">External APIs Called (all free · no API key required)</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(0,60,120,0.15); border:1px solid rgba(0,100,200,0.2); color:#4090c0; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">disease.sh/v3</strong>COVID · Flu · Global
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(0,60,30,0.15); border:1px solid rgba(0,160,80,0.2); color:#40a870; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">WHO GHO OData</strong>Malaria · TB · Dengue
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(60,30,0,0.15); border:1px solid rgba(200,100,20,0.2); color:#c07830; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">CDC Socrata</strong>US COVID · ILI Stats
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(0,50,60,0.15); border:1px solid rgba(0,160,180,0.2); color:#30b8c8; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">ECDC Open Data</strong>EU/EEA COVID · Flu
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(50,40,0,0.15); border:1px solid rgba(180,140,0,0.2); color:#b0a020; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">CDC FluView RSS</strong>Weekly ILI % XML
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(50,5,5,0.15); border:1px solid rgba(180,50,50,0.2); color:#c04040; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">CDC MMWR RSS</strong>Live outbreak reports
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(5,40,35,0.15); border:1px solid rgba(0,140,130,0.2); color:#30b0a0; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">HealthMap API</strong>Global real-time alerts
+    </div>
+    <div style="font-size:0.52rem; padding:6px 14px; border-radius:6px; background:rgba(25,5,50,0.15); border:1px solid rgba(130,50,220,0.2); color:#a060d0; text-align:center;">
+      <strong style="display:block; margin-bottom:2px;">IHME GBD CSV</strong>India burden 2010–2023
+    </div>
+  </div>
+</div>
+
+<!-- ── FOOTER BADGES ── -->
+<div class="footer">
+  <div class="badge">Python 3.11+</div>
+  <div class="badge">FastAPI 0.111</div>
+  <div class="badge">Uvicorn ASGI</div>
+  <div class="badge">scikit-learn</div>
+  <div class="badge">Prophet (Meta)</div>
+  <div class="badge">pandas + numpy</div>
+  <div class="badge">feedparser</div>
+  <div class="badge">httpx (async)</div>
+  <div class="badge">Pydantic v2</div>
+  <div class="badge">8 Data Sources</div>
+  <div class="badge">3 ML Models</div>
+  <div class="badge">0 Paid APIs</div>
+</div>
+
+</body>
+</html>
