@@ -221,7 +221,7 @@ http://localhost:8000/docs
 
 Members-
 Amrutha Kola
-Rishika Redd 
+Rishika Reddy 
 Shruti Anubolu
 Yamini Ceeba
 
