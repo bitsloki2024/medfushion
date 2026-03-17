@@ -218,7 +218,7 @@ http://localhost:8000/docs
 
 ## Team
 
-**MedFushion** — Disease Surveillance Backend
+**CosmoSentinel** — Disease Surveillance Backend
 Built for real-world epidemiological data integration with production ML pipelines.
 
 ---
