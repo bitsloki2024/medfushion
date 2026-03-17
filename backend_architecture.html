@@ -4,7 +4,17 @@
 <meta charset="UTF-8">
 <title>CosmoSentinel — Backend Architecture Flowchart</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
+  /* ── FORCE BACKGROUND COLORS IN PRINT ── */
+  * {
+    margin:0; padding:0; box-sizing:border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
   body {
     font-family: 'Inter', -apple-system, sans-serif;
     background: #040c18;
@@ -20,7 +30,7 @@
     color: #fff; margin-bottom: 6px;
   }
   .header h1 span { color: #38bdf8; }
-  .header p { font-size: 0.72rem; color: #334e68; letter-spacing: 0.2em; text-transform: uppercase; }
+  .header p { font-size: 0.72rem; color: #5a7a9a; letter-spacing: 0.2em; text-transform: uppercase; }
 
   /* ── FLOWCHART WRAPPER ── */
   .flow {
@@ -37,8 +47,8 @@
     font-size: 0.52rem;
     letter-spacing: 0.28em;
     text-transform: uppercase;
-    color: #1e4060;
-    font-weight: 600;
+    color: #4a7898;
+    font-weight: 700;
     text-align: center;
     margin-bottom: 10px;
   }
@@ -60,7 +70,7 @@
   .node .desc {
     font-size: 0.58rem;
     line-height: 1.6;
-    opacity: 0.75;
+    opacity: 0.9;
   }
 
   /* ── NODE COLORS ── */
@@ -80,16 +90,16 @@
     align-items: center;
     margin: 4px 0;
   }
-  .arrow-line { width: 2px; height: 28px; background: #0e2840; }
+  .arrow-line { width: 2px; height: 28px; background: #2a5070; }
   .arrow-head {
     width: 0; height: 0;
     border-left: 6px solid transparent;
     border-right: 6px solid transparent;
-    border-top: 9px solid #0e2840;
+    border-top: 9px solid #2a5070;
   }
   .arrow-text {
     font-size: 0.46rem; letter-spacing: 0.15em; text-transform: uppercase;
-    color: #1a3a5a; margin-top: 3px;
+    color: #4a7898; margin-top: 3px;
   }
 
   /* ── WIDE ARROW (labeled) ── */
@@ -120,7 +130,7 @@
     margin-bottom: 3px;
   }
   .src-card .src-detail {
-    font-size: 0.46rem; line-height: 1.55; opacity: 0.6;
+    font-size: 0.46rem; line-height: 1.55; opacity: 0.85;
   }
   .src-card .src-tag {
     display: inline-block;
@@ -163,7 +173,7 @@
   }
   .ml-card .ml-name { font-size: 0.62rem; font-weight: 700; margin-bottom: 2px; }
   .ml-card .ml-algo { font-size: 0.5rem; color: #8050c0; margin-bottom: 4px; }
-  .ml-card .ml-io   { font-size: 0.44rem; color: #5a3088; line-height: 1.55; }
+  .ml-card .ml-io   { font-size: 0.44rem; color: #9060c0; line-height: 1.55; }
 
   /* ── DECISION DIAMOND ── */
   .diamond-wrapper { display:flex; flex-direction:column; align-items:center; }
@@ -193,7 +203,7 @@
     min-width: 260px;
   }
   .response-box .title { font-size: 0.72rem; font-weight: 700; color: #40e0a0; margin-bottom: 4px; }
-  .response-box .schema { font-size: 0.5rem; color: #205040; font-family: 'SF Mono', monospace; line-height: 1.6; }
+  .response-box .schema { font-size: 0.5rem; color: #40a880; font-family: 'SF Mono', monospace; line-height: 1.6; }
 
   /* ── BRACKET LINE ── */
   .bracket {
@@ -219,7 +229,79 @@
   .badge {
     font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase;
     padding: 5px 12px; border-radius: 20px;
-    border: 1px solid #0e2840; color: #1e4060;
+    border: 1px solid #1e4060; color: #4a7898;
+  }
+
+  /* ── PRINT: FORCE SOLID DARK BACKGROUNDS & VIVID TEXT ── */
+  @media print {
+    html, body {
+      background: #040c18 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body { padding: 20px 24px !important; }
+
+    /* Make all rgba backgrounds solid */
+    .n-browser  { background: #0d1e38 !important; border-color: #3a6898 !important; color: #a0c8e8 !important; }
+    .n-server   { background: #041840 !important; border-color: #0090e0 !important; color: #60c8f0 !important; }
+    .n-config   { background: #0a1828 !important; border-color: #2a5090 !important; color: #7890b0 !important; }
+
+    .src-card          { background: #07101e !important; border-color: #1a3a60 !important; }
+    .src-card.s-blue   { background: #031428 !important; border-color: #0060b0 !important; color: #60b8e8 !important; }
+    .src-card.s-green  { background: #021408 !important; border-color: #007840 !important; color: #40d888 !important; }
+    .src-card.s-orange { background: #180800 !important; border-color: #904010 !important; color: #e09050 !important; }
+    .src-card.s-teal   { background: #021418 !important; border-color: #007880 !important; color: #40d8d8 !important; }
+    .src-card.s-yellow { background: #120e00 !important; border-color: #806800 !important; color: #d8b840 !important; }
+    .src-card.s-red    { background: #140202 !important; border-color: #801020 !important; color: #e06060 !important; }
+    .src-card.s-purple { background: #0e0218 !important; border-color: #602090 !important; color: #c080f0 !important; }
+    .src-card.s-teal2  { background: #021210 !important; border-color: #007068 !important; color: #40c8b8 !important; }
+
+    .src-card .src-name    { opacity: 1 !important; }
+    .src-card .src-detail  { opacity: 1 !important; }
+    .src-card .ttl         { color: #30a060 !important; opacity: 1 !important; }
+    .src-card .src-tag     { opacity: 1 !important; }
+
+    .ml-card    { background: #0e0220 !important; border-color: #6020a0 !important; }
+    .ml-card .ml-algo { color: #9060d0 !important; }
+    .ml-card .ml-io   { color: #a070d0 !important; opacity: 1 !important; }
+
+    .response-box { background: #021208 !important; border-color: #00a060 !important; }
+    .response-box .schema { color: #40c880 !important; }
+
+    .node .desc { opacity: 1 !important; }
+
+    .arrow-line { background: #2a5878 !important; }
+    .arrow-head { border-top-color: #2a5878 !important; }
+    .arrow-text { color: #4a8098 !important; opacity: 1 !important; }
+    .section-label { color: #5a90b0 !important; opacity: 1 !important; }
+
+    .badge { color: #5a80a0 !important; border-color: #1e4868 !important; opacity: 1 !important; }
+
+    /* External APIs strip at bottom */
+    [style*="rgba(0,60,120"] { background: #021428 !important; }
+    [style*="rgba(0,60,30"]  { background: #021408 !important; }
+
+    /* Prevent sections from splitting across pages */
+    .flow, .row, .node, .src-card, .ml-card, .response-box, .footer {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    .section-label {
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+    }
+    .arrow {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+
+    /* Clean page break before ML section */
+    .print-break {
+      page-break-before: always !important;
+      break-before: always !important;
+      display: block;
+      height: 0;
+    }
   }
 </style>
 </head>
@@ -423,6 +505,7 @@
   </div>
 
   <!-- ══ STEP 5: ML ══ -->
+  <div class="print-break"></div>
   <div class="section-label">Step 5 — Machine Learning Layer (ml/ folder)</div>
   <div class="row" style="max-width:700px; gap:12px;">
 
