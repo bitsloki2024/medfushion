@@ -3,6 +3,10 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip as ReTooltip, Legend, ResponsiveContainer,
+} from 'recharts';
+import {
   DISEASE_META, generateTrendData, computeRiskScore, getRiskColor,
   DISEASE_CLASSIFICATION, DISEASE_GENES, DISEASE_DRUGS,
   type GlobePoint, type DiseaseKey
@@ -16,6 +20,7 @@ interface Props {
   country: GlobePoint;
   disease: DiseaseKey;
   activeTab: 'surveillance' | 'classification' | 'genomics' | 'therapeutics';
+  region: string;
 }
 
 // ── Shared Styles ────────────────────────────────────────────────────────────
@@ -227,300 +232,266 @@ const INTERVENTIONS = [
   { id: 'treatment',    label: 'Treatment Deploy',   icon: '🏥', reduction: 0.35, hex: '#a78bfa' },
 ];
 
-function InterveneSpreadSection({ disease }: { disease: DiseaseKey }) {
-  const [active, setActive] = useState<Set<string>>(new Set());
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef   = useRef<number | null>(null);
-  const reducRef  = useRef(0);
-
+function InterveneSpreadSection({ disease, region, days, active, onToggle, locationLabel }: {
+  disease: DiseaseKey; region: string; days: number;
+  active: Set<string>; onToggle: (id: string) => void; locationLabel: string;
+}) {
   const totalReduction = useMemo(
     () => Math.min(0.92, Array.from(active).reduce((s, id) => s + (INTERVENTIONS.find(i => i.id === id)?.reduction || 0), 0)),
     [active]
   );
-  // Keep ref in sync for animation reads
-  useEffect(() => { reducRef.current = totalReduction; }, [totalReduction]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = canvas.offsetWidth || 300;
-    const H = 160;
-    canvas.width = W; canvas.height = H;
-
-    // Seed clusters
-    const rng = (seed: number) => { let s = seed; return () => { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s >>> 0) / 4294967295; }; };
-    const rand = rng(42);
-    const clusters = Array.from({ length: 5 }, (_, c) => ({
-      cx: (0.15 + c * 0.17) * W,
-      cy: (0.25 + rand() * 0.5) * H,
-      particles: Array.from({ length: 7 }, () => ({
-        ox: (rand() - 0.5) * 28, oy: (rand() - 0.5) * 28,
-        r: 3 + rand() * 8, alpha: 0.5 + rand() * 0.45,
-        speed: 0.008 + rand() * 0.018, phase: rand() * Math.PI * 2,
-      })),
-    }));
-
-    let t = 0;
-    const animate = () => {
-      t += 0.018;
-      const red = reducRef.current;
-      ctx.clearRect(0, 0, W, H);
-
-      // Transmission arcs between clusters
-      const arcAlpha = Math.max(0, 0.35 * (1 - red));
-      if (arcAlpha > 0.02) {
-        ctx.setLineDash([3, 5]);
-        for (let i = 0; i < clusters.length - 1; i++) {
-          const a = clusters[i], b = clusters[i + 1];
-          ctx.beginPath(); ctx.moveTo(a.cx, a.cy);
-          ctx.quadraticCurveTo((a.cx + b.cx) / 2, Math.min(a.cy, b.cy) - 22, b.cx, b.cy);
-          ctx.strokeStyle = `rgba(239,68,68,${arcAlpha})`;
-          ctx.lineWidth = 0.6; ctx.stroke();
-        }
-        ctx.setLineDash([]);
-      }
-
-      // Infection clusters
-      for (const cl of clusters) {
-        const scale = Math.max(0.05, 1 - red * 0.9);
-        for (const p of cl.particles) {
-          const pulseR = (p.r + Math.sin(t * p.speed * 60 + p.phase) * 2.5) * scale;
-          if (pulseR < 0.5) continue;
-          ctx.beginPath();
-          ctx.arc(cl.cx + p.ox * scale, cl.cy + p.oy * scale, pulseR, 0, Math.PI * 2);
-          ctx.fillStyle   = `rgba(239,68,68,${p.alpha * scale * 0.38})`;
-          ctx.strokeStyle = `rgba(239,68,68,${p.alpha * scale})`;
-          ctx.lineWidth = 0.7; ctx.fill(); ctx.stroke();
-        }
-        // Cluster centre
-        ctx.beginPath(); ctx.arc(cl.cx, cl.cy, 4 * scale, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(239,68,68,${0.85 * scale})`; ctx.fill();
-
-        // Intervention shield
-        if (red > 0.05) {
-          const shieldR = 26 * Math.sqrt(red);
-          ctx.beginPath(); ctx.arc(cl.cx, cl.cy, shieldR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(34,197,94,${red * 0.5})`;
-          ctx.lineWidth = 1.5; ctx.stroke();
-          // Animated shield tick
-          const tickAngle = t * 0.8;
-          ctx.beginPath();
-          ctx.arc(cl.cx, cl.cy, shieldR, tickAngle, tickAngle + 0.5);
-          ctx.strokeStyle = `rgba(34,197,94,${red * 0.9})`;
-          ctx.lineWidth = 2; ctx.stroke();
-        }
-      }
-
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animRef.current = requestAnimationFrame(animate);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, []); // only initialise once
+  // Per-intervention outcome summaries
+  const summaries: Record<string, string> = {
+    vaccination:  'Reduces susceptible population, slows R0',
+    quarantine:   'Isolates infectious cases, cuts transmission chains',
+    travel:       'Limits cross-regional spread and importation risk',
+    treatment:    'Reduces infectious period and severe case burden',
+  };
 
   return (
     <div style={S.card}>
-      <span style={S.label}>Intervene Spread · Intervention Simulation</span>
-      <div style={{ fontSize: '0.62rem', color: '#3a5a78', marginBottom: 10 }}>
-        Toggle interventions below to see real-time case reduction on the animation.
+      <span style={S.label}>Intervene Spread · Intervention Impact</span>
+      <div style={{ fontSize: '0.62rem', color: '#3a5a78', marginBottom: 12 }}>
+        Select interventions to see projected spread reduction for <strong style={{ color: '#6a90a8' }}>{locationLabel}</strong> · {days}-day window.
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+
+      {/* Intervention toggles */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
         {INTERVENTIONS.map(iv => {
           const isOn = active.has(iv.id);
           return (
-            <button key={iv.id} onClick={() => setActive(prev => { const n = new Set(prev); isOn ? n.delete(iv.id) : n.add(iv.id); return n; })}
-              style={{ padding: '7px 10px', borderRadius: 7, cursor: 'pointer', fontFamily: 'Inter,sans-serif', border: `1px solid ${isOn ? iv.hex + '55' : 'rgba(0,80,120,0.2)'}`, background: isOn ? iv.hex + '14' : 'rgba(0,20,50,0.4)', color: isOn ? iv.hex : '#4a6785', fontSize: '0.65rem', fontWeight: isOn ? 500 : 400, transition: 'all 0.2s ease', textAlign: 'left' as const, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button key={iv.id}
+              onClick={() => onToggle(iv.id)}
+              style={{ padding: '8px 10px', borderRadius: 7, cursor: 'pointer', fontFamily: 'Inter,sans-serif', border: `1px solid ${isOn ? iv.hex + '55' : 'rgba(0,80,120,0.2)'}`, background: isOn ? iv.hex + '14' : 'rgba(0,20,50,0.4)', color: isOn ? iv.hex : '#4a6785', fontSize: '0.65rem', fontWeight: isOn ? 600 : 400, transition: 'all 0.18s ease', textAlign: 'left' as const, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>{iv.icon}</span> {iv.label}
             </button>
           );
         })}
       </div>
-      <canvas ref={canvasRef} style={{ width: '100%', height: 160, display: 'block', borderRadius: 7, background: 'rgba(0,10,26,0.4)' }} />
+
+      {/* Static outcome display */}
       {totalReduction > 0 ? (
-        <div style={{ marginTop: 8, padding: '5px 10px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 5, fontSize: '0.65rem', color: '#4ade80' }}>
-          ✓ Combined interventions reducing spread by <strong>{(totalReduction * 100).toFixed(0)}%</strong>
+        <div style={{ padding: '14px 16px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.22)', borderRadius: 8 }}>
+          <div style={{ fontSize: '0.55rem', color: '#3a7a5a', letterSpacing: '0.16em', textTransform: 'uppercase' as const, marginBottom: 6, fontFamily: 'Inter,sans-serif', fontWeight: 500 }}>
+            Projected Outcome
+          </div>
+          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#4ade80', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '-0.02em', lineHeight: 1, marginBottom: 6 }}>
+            −{(totalReduction * 100).toFixed(0)}% spread reduction
+          </div>
+          <div style={{ fontSize: '0.7rem', color: '#5aaa7a', fontFamily: 'Inter,sans-serif', marginBottom: 10 }}>
+            Combined interventions reducing spread by <strong>{(totalReduction * 100).toFixed(0)}%</strong> over {days} days
+          </div>
+          {/* Per-intervention breakdown */}
+          <div style={{ borderTop: '1px solid rgba(34,197,94,0.1)', paddingTop: 8, display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+            {INTERVENTIONS.filter(iv => active.has(iv.id)).map(iv => (
+              <div key={iv.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: '0.62rem', color: iv.hex, fontWeight: 500, minWidth: 110 }}>{iv.icon} {iv.label}</span>
+                <span style={{ fontSize: '0.58rem', color: '#3a5a78' }}>−{(iv.reduction * 100).toFixed(0)}% · {summaries[iv.id]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
-        <div style={{ marginTop: 8, fontSize: '0.62rem', color: '#2e4a62', textAlign: 'center' as const }}>
-          ↑ Activate interventions above to see effect
+        <div style={{ padding: '16px', background: 'rgba(0,30,60,0.25)', border: '1px solid rgba(0,80,120,0.12)', borderRadius: 8, textAlign: 'center' as const }}>
+          <div style={{ fontSize: '0.68rem', color: '#3a5a78', fontFamily: 'Inter,sans-serif' }}>
+            Select interventions above to see projected impact
+          </div>
+          <div style={{ fontSize: '0.58rem', color: '#1e3040', marginTop: 4 }}>
+            Estimates based on epidemiological modelling for {days}-day window
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+// ── Module-level storage so tooltip survives any remount ──
+let _projLast: { payload: any[]; label: any } | null = null;
+
+// ── Stable tooltip — defined outside, never recreated ──
+function ProjectedTooltip({ active, payload, label }: any) {
+  if (active && payload?.length) _projLast = { payload, label };
+  if (!_projLast) return null;
+  const { payload: p, label: l } = _projLast;
+  return (
+    <div style={{ background: 'rgba(0,10,28,0.97)', border: '1px solid rgba(0,120,180,0.2)', borderRadius: 8, padding: '8px 12px', fontSize: 10, fontFamily: 'Inter,sans-serif' }}>
+      <div style={{ color: '#8ab8d0', marginBottom: 4, fontWeight: 500 }}>{l}</div>
+      {p.map((item: any) => (
+        <div key={item.dataKey} style={{ color: item.color, marginBottom: 2 }}>
+          {item.name}: <strong>{formatNumber(item.value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Projected Spread Simulation ────────────────────────────────────────────────
-function ProjectedSpreadSection({ country, trendData }: { country: GlobePoint; trendData: Array<{ year: number; cases: number }> }) {
-  const [projYears, setProjYears]         = useState(2);
-  const [withIntervention, setWithInterv] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef   = useRef<number | null>(null);
+function ProjectedSpreadSection({ country, trendData, region, days, intFactor = 0.32 }: {
+  country: GlobePoint;
+  trendData: Array<{ year: number; cases: number }>;
+  region: string;
+  days: number;
+  intFactor?: number;
+}) {
+  // Region-specific growth multiplier — use country.region for India states
+  const regionMult = useMemo(() => {
+    if (country.region === 'India') return 1.05; // India state-level spread
+    const r = region.toLowerCase();
+    if (r === 'africa')                          return 1.18;
+    if (r === 'americas')                        return 0.92;
+    if (r === 'europe')                          return 0.78;
+    if (r === 'asia' || r === 'asia-pacific')    return 1.08;
+    return 1.0;
+  }, [region, country.region]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = canvas.offsetWidth || 300;
-    const H = 170;
-    canvas.width = W; canvas.height = H;
-    const cx = W / 2, cy = H / 2;
+  // Build day-by-day data for both curves
+  const chartData = useMemo(() => {
+    const base        = trendData.at(-1)?.cases || country.cases;
+    const dailyGrowth = 0.0028 * regionMult;
+    const step        = days <= 30 ? 5 : days <= 60 ? 10 : 15;
+    const pts: number[] = [];
+    for (let d = 0; d <= days; d += step) pts.push(d);
+    if (pts[pts.length - 1] !== days) pts.push(days);
+    return pts.map(d => ({
+      day:       d === 0 ? 'Now' : `Day ${d}`,
+      projected: Math.round(base * Math.pow(1 + dailyGrowth, d)),
+      intervened: Math.round(base * Math.pow(1 + dailyGrowth * intFactor, d)),
+    }));
+  }, [days, country.cases, trendData, regionMult, intFactor]);
 
-    const baseCases = trendData.at(-1)?.cases || country.cases;
-    const growthRate = 0.09;
-    const interventionMult = withIntervention ? 0.35 : 1.0;
-
-    let t = 0;
-    const maxRings = projYears;
-
-    const animate = () => {
-      t += 0.016;
-      ctx.clearRect(0, 0, W, H);
-
-      // Background grid lines
-      ctx.strokeStyle = 'rgba(0,80,120,0.08)';
-      ctx.lineWidth = 0.5;
-      for (let i = 1; i < 4; i++) {
-        ctx.beginPath(); ctx.moveTo(0, H * i / 4); ctx.lineTo(W, H * i / 4); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(W * i / 4, 0); ctx.lineTo(W * i / 4, H); ctx.stroke();
-      }
-
-      // Year label
-      const displayYear = new Date().getFullYear() + projYears;
-      ctx.font = '500 10px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(96,184,220,0.5)';
-      ctx.textAlign = 'right';
-      ctx.fillText(`Projection to ${displayYear}`, W - 8, 14);
-      ctx.textAlign = 'left';
-
-      // Spread rings (one per year)
-      for (let yr = 1; yr <= maxRings; yr++) {
-        const delay = (yr - 1) * (1.2 / maxRings);
-        const progress = Math.max(0, Math.min(1, (t - delay) / 0.8));
-        if (progress <= 0) continue;
-
-        const casesNoIntv = baseCases * Math.pow(1 + growthRate, yr);
-        const casesWith   = baseCases * Math.pow(1 + growthRate * interventionMult, yr);
-        const maxR = 25 + yr * (H * 0.12);
-
-        // Without intervention ring (red)
-        const rNoIntv = maxR * progress;
-        const alphaR = 0.35 * (1 - progress * 0.4);
-        ctx.beginPath(); ctx.arc(cx, cy, rNoIntv, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(239,68,68,${alphaR})`;
-        ctx.lineWidth = 1.2; ctx.stroke();
-
-        // With intervention ring (green)
-        if (withIntervention) {
-          const rWith = rNoIntv * Math.sqrt(casesWith / Math.max(casesNoIntv, 1));
-          ctx.beginPath(); ctx.arc(cx, cy, rWith, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(34,197,94,${alphaR * 1.2})`;
-          ctx.lineWidth = 1.2; ctx.stroke();
-        }
-
-        // Heat blob at year ring
-        const blobR = 12 + yr * 4;
-        const angles = [0, 1.2, 2.4, 3.6, 4.8];
-        for (const angle of angles.slice(0, 2 + yr)) {
-          const bx = cx + rNoIntv * 0.7 * Math.cos(angle);
-          const by = cy + rNoIntv * 0.7 * Math.sin(angle);
-          const grad = ctx.createRadialGradient(bx, by, 0, bx, by, blobR);
-          grad.addColorStop(0, `rgba(239,68,68,${0.45 * progress})`);
-          grad.addColorStop(1, 'rgba(239,68,68,0)');
-          ctx.fillStyle = grad;
-          ctx.beginPath(); ctx.arc(bx, by, blobR, 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Year badge
-        if (progress > 0.5) {
-          ctx.font = '500 9px Inter, sans-serif';
-          ctx.fillStyle = `rgba(180,210,230,${Math.min(1, (progress - 0.5) * 2)})`;
-          ctx.textAlign = 'center';
-          ctx.fillText(`+${yr}yr`, cx + rNoIntv * 0.95, cy - 4);
-        }
-      }
-
-      // Country centre dot
-      ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-      ctx.fillStyle = '#60b8dc'; ctx.fill();
-      ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(0,180,255,0.4)'; ctx.lineWidth = 1; ctx.stroke();
-
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animRef.current = requestAnimationFrame(animate);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [projYears, withIntervention, country.cases, trendData]);
-
-  const projectedCases = useMemo(() => {
-    const base = trendData.at(-1)?.cases || country.cases;
-    const noIntv = base * Math.pow(1.09, projYears);
-    const withI  = base * Math.pow(1 + 0.09 * 0.35, projYears);
-    return { noIntv: Math.round(noIntv), withI: Math.round(withI) };
-  }, [projYears, country.cases, trendData]);
+  // Summary metrics for the cards below the chart
+  const { projFinal, intFinal, reduction } = useMemo(() => {
+    const base        = trendData.at(-1)?.cases || country.cases;
+    const dailyGrowth = 0.0028 * regionMult;
+    const pF = Math.round(base * Math.pow(1 + dailyGrowth, days));
+    const iF = Math.round(base * Math.pow(1 + dailyGrowth * intFactor, days));
+    return { projFinal: pF, intFinal: iF, reduction: ((pF - iF) / pF * 100).toFixed(0) };
+  }, [days, country.cases, trendData, regionMult, intFactor]);
 
   return (
     <div style={S.card}>
-      <span style={S.label}>Projected Spread · {projYears}-Year Simulation</span>
+      <span style={S.label}>
+        {country.region === 'India' ? '🇮🇳 State-Level ' : ''}Projected Spread · {days}-Day Simulation
+      </span>
 
-      {/* Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12, flexWrap: 'wrap' as const }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-          <span style={{ fontSize: '0.62rem', color: '#3a5a78', whiteSpace: 'nowrap' as const }}>Years ahead: <strong style={{ color: '#60b8dc' }}>{projYears}</strong></span>
-          <input type="range" min={1} max={5} value={projYears} onChange={e => setProjYears(+e.target.value)}
-            style={{ flex: 1, accentColor: '#60b8dc', cursor: 'pointer' }} />
-        </div>
-        <button onClick={() => setWithInterv(v => !v)}
-          style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${withIntervention ? 'rgba(34,197,94,0.4)' : 'rgba(0,80,120,0.2)'}`, background: withIntervention ? 'rgba(34,197,94,0.1)' : 'rgba(0,20,50,0.4)', color: withIntervention ? '#4ade80' : '#4a6785', fontSize: '0.62rem', cursor: 'pointer', fontFamily: 'Inter,sans-serif', fontWeight: withIntervention ? 500 : 400, transition: 'all 0.2s ease' }}>
-          {withIntervention ? '✓ With Intervention' : 'Without Intervention'}
-        </button>
-      </div>
-
-      <canvas ref={canvasRef} style={{ width: '100%', height: 170, display: 'block', borderRadius: 7, background: 'rgba(0,10,26,0.4)' }} />
+      <ResponsiveContainer width="99%" height={172}>
+        <LineChart data={chartData} margin={{ top: 6, right: 8, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,80,120,0.07)" vertical={false} />
+          <XAxis dataKey="day" tick={{ fontSize: 8, fill: '#3a5a78', fontFamily: 'Inter,sans-serif' }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 8, fill: '#3a5a78', fontFamily: 'Inter,sans-serif' }} tickLine={false} axisLine={false} tickFormatter={v => formatNumber(v)} width={46} />
+          <ReTooltip content={ProjectedTooltip} isAnimationActive={false} cursor={{ stroke: 'rgba(0,160,220,0.3)', strokeWidth: 1 }} />
+          <Legend wrapperStyle={{ fontSize: '0.58rem', color: '#4a6785', paddingTop: 4, fontFamily: 'Inter,sans-serif' }} iconType="line" iconSize={12} />
+          <Line
+            type="monotone" dataKey="projected" name="Projected Spread"
+            stroke="rgba(239,68,68,0.85)" strokeWidth={1.8} dot={false}
+            activeDot={{ r: 3, fill: 'rgba(239,68,68,0.9)' }}
+            isAnimationActive={false}
+          />
+          <Line
+            type="monotone" dataKey="intervened" name="With Intervention"
+            stroke="rgba(34,197,94,0.85)" strokeWidth={1.8} dot={false}
+            activeDot={{ r: 3, fill: 'rgba(34,197,94,0.9)' }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
 
       {/* Comparison metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
         <div style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: 7 }}>
-          <div style={{ fontSize: '0.55rem', color: '#4a6785', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>No Intervention</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 300, color: '#f87171' }}>{formatNumber(projectedCases.noIntv)}</div>
-          <div style={{ fontSize: '0.55rem', color: '#4a4a5a' }}>projected cases</div>
+          <div style={{ fontSize: '0.55rem', color: '#4a6785', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 4 }}>No Intervention</div>
+          <div style={{ fontSize: '0.95rem', fontWeight: 300, color: '#f87171' }}>{formatNumber(projFinal)}</div>
+          <div style={{ fontSize: '0.55rem', color: '#4a4a5a' }}>by day {days}</div>
         </div>
-        {withIntervention && (
-          <div style={{ padding: '8px 10px', background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: 7 }}>
-            <div style={{ fontSize: '0.55rem', color: '#4a6785', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>With Intervention</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 300, color: '#4ade80' }}>{formatNumber(projectedCases.withI)}</div>
-            <div style={{ fontSize: '0.55rem', color: '#4a4a5a' }}>projected cases · <span style={{ color: '#4ade80' }}>–{(((projectedCases.noIntv - projectedCases.withI) / projectedCases.noIntv) * 100).toFixed(0)}%</span></div>
-          </div>
-        )}
-      </div>
-
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 12, height: 2, background: 'rgba(239,68,68,0.7)', borderRadius: 1 }} />
-          <span style={{ fontSize: '0.55rem', color: '#4a6785' }}>Unchecked spread</span>
+        <div style={{ padding: '8px 10px', background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: 7 }}>
+          <div style={{ fontSize: '0.55rem', color: '#4a6785', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 4 }}>With Intervention</div>
+          <div style={{ fontSize: '0.95rem', fontWeight: 300, color: '#4ade80' }}>{formatNumber(intFinal)}</div>
+          <div style={{ fontSize: '0.55rem', color: '#4a4a5a' }}>–<span style={{ color: '#4ade80' }}>{reduction}%</span> reduction</div>
         </div>
-        {withIntervention && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 12, height: 2, background: 'rgba(34,197,94,0.7)', borderRadius: 1 }} />
-            <span style={{ fontSize: '0.55rem', color: '#4a6785' }}>With interventions</span>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
+const BACKEND = 'http://localhost:8000';
+
+// ── Backend stats shape returned for India states ──────────────────────────────
+interface BackendTrendPoint { year: number; cases: number; deaths: number; is_anomaly: boolean }
+interface BackendStats {
+  trend: BackendTrendPoint[];
+  years: number[];
+  cases: number[];
+  risk_score: number;
+  risk_label: string;
+  is_alarming: boolean;
+  growth_rate: number;
+  data_confidence: number;
+  source: string;
+}
+
 // ── Main CountryPanel ─────────────────────────────────────────────────────────
-export function CountryPanel({ country, disease, activeTab }: Props) {
+export function CountryPanel({ country, disease, activeTab, region }: Props) {
   const meta           = DISEASE_META[disease];
   const classification = DISEASE_CLASSIFICATION[disease];
   const genes          = DISEASE_GENES[disease];
   const drugs          = DISEASE_DRUGS[disease];
 
-  const trendData  = useMemo(() => generateTrendData(disease, country.country), [disease, country.country]);
-  const anomalies  = useMemo(() => isolationForest(trendData), [trendData]);
+  const [days, setDays] = useState<30 | 60 | 90>(60);
+  const [simActive, setSimActive] = useState<Set<string>>(new Set());
+  const handleSimToggle = useCallback((id: string) => {
+    setSimActive(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // ── India state: fetch real trend data from backend ───────────────────────
+  const isIndiaState = country.region === 'India';
+  const [backendStats, setBackendStats] = useState<BackendStats | null>(null);
+  const [backendLoading, setBackendLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isIndiaState) { setBackendStats(null); return; }
+    setBackendLoading(true);
+    setBackendStats(null);
+    fetch(`${BACKEND}/api/v1/country/stats?country=${encodeURIComponent(country.country)}&disease=${disease}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((data: BackendStats) => { setBackendStats(data); setBackendLoading(false); })
+      .catch(() => setBackendLoading(false));
+  }, [country.country, disease, isIndiaState]);
+
+  // ── Trend data: real backend data for India states, generated for countries ─
+  const trendData = useMemo(() => {
+    if (isIndiaState && backendStats?.trend?.length) {
+      return backendStats.trend.map(d => ({ year: d.year, cases: d.cases, deaths: d.deaths }));
+    }
+    return generateTrendData(disease, country.country);
+  }, [isIndiaState, backendStats, disease, country.country]);
+
+  // ── Anomaly detection: use backend is_anomaly flags for India states ─────────
+  const anomalies = useMemo(() => {
+    if (isIndiaState && backendStats?.trend?.length) {
+      return backendStats.trend.map((d, i, arr) => {
+        const prev = arr[i - 1]?.cases ?? d.cases;
+        const anomalyType = d.is_anomaly
+          ? (d.cases > prev * 1.15 ? 'numerical_spike' : d.cases < prev * 0.85 ? 'numerical_drop' : 'seasonal')
+          : 'normal';
+        return {
+          year:        d.year,
+          cases:       d.cases,
+          isAnomaly:   d.is_anomaly,
+          anomalyType: anomalyType as 'numerical_spike' | 'numerical_drop' | 'seasonal' | 'normal',
+          anomalyScore: d.is_anomaly ? 0.87 : 0,
+          confidence:  d.is_anomaly ? 0.87 : 0.5,
+        };
+      });
+    }
+    return isolationForest(trendData);
+  }, [isIndiaState, backendStats, trendData]);
+
+  // ── Forecast: Prophet model on real data (works for both countries + states) ─
   const forecast   = useMemo(() => prophetForecast(trendData, 5), [trendData]);
   const regression = useMemo(() => linearRegression(trendData, 5), [trendData]);
 
@@ -550,20 +521,24 @@ export function CountryPanel({ country, disease, activeTab }: Props) {
       <div style={{ ...S.card, borderColor: `${riskColor}22` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 400, color: '#e8f4ff', fontFamily: 'Inter,sans-serif' }}>{country.country}</div>
-            <div style={{ fontSize: '0.65rem', color: '#3a5a78', marginTop: 3, fontFamily: 'Inter,sans-serif' }}>{meta.icon} {meta.label} · Pop {formatNumber(country.population)}</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 500, color: '#f0f8ff', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em' }}>
+              {isIndiaState && <span style={{ fontSize: '0.9rem', marginRight: 6 }}>🇮🇳</span>}
+              {country.country}
+              {isIndiaState && <span style={{ fontSize: '0.62rem', color: '#8a6040', marginLeft: 8, fontWeight: 400 }}>State</span>}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#5a7a98', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>{meta.icon} {meta.label} · Pop {formatNumber(country.population)}</div>
           </div>
-          <div style={{ padding: '5px 12px', background: `${riskColor}15`, border: `1px solid ${riskColor}30`, borderRadius: 6, fontSize: '0.72rem', color: riskColor, fontWeight: 500 }}>{riskScore}/100</div>
+          <div style={{ padding: '5px 12px', background: `${riskColor}18`, border: `1px solid ${riskColor}40`, borderRadius: 6, fontSize: '0.75rem', color: riskColor, fontWeight: 600 }}>{riskScore}/100</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Total Cases',  val: formatNumber(country.cases),                                                           color: '#60a8cc' },
+            { label: 'Total Cases',  val: formatNumber(country.cases),                                                           color: '#70b8dc' },
             { label: 'Risk Level',   val: riskLabel,                                                                              color: riskColor },
-            { label: 'YoY Change',   val: `${growthRate > 0 ? '+' : ''}${(growthRate*100).toFixed(1)}%`,                         color: growthRate > 0.05 ? '#ef4444' : '#22c55e' },
+            { label: 'YoY Change',   val: `${growthRate > 0 ? '+' : ''}${(growthRate*100).toFixed(1)}%`,                         color: growthRate > 0.05 ? '#f87171' : '#4ade80' },
           ].map(item => (
             <div key={item.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.95rem', fontWeight: 300, color: item.color, fontFamily: 'Inter,sans-serif' }}>{item.val}</div>
-              <div style={{ fontSize: '0.52rem', color: '#3a5a78', letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: 2 }}>{item.label}</div>
+              <div style={{ fontSize: '1.08rem', fontWeight: 400, color: item.color, fontFamily: 'Inter,sans-serif' }}>{item.val}</div>
+              <div style={{ fontSize: '0.6rem', color: '#4a6a88', letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: 3, fontWeight: 500 }}>{item.label}</div>
             </div>
           ))}
         </div>
@@ -599,9 +574,20 @@ export function CountryPanel({ country, disease, activeTab }: Props) {
       </div>
 
       {/* Trend chart */}
-      {trendData.length > 0 && (
+      {backendLoading ? (
+        <div style={{ ...S.card, textAlign: 'center', padding: '24px 0' }}>
+          <div style={{ fontSize: '0.65rem', color: '#4a6785' }}>⏳ Loading real state data…</div>
+        </div>
+      ) : trendData.length > 0 && (
         <div style={S.card}>
-          <span style={S.label}>Historical Trend — Anomaly Detection</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={S.label}>Historical Trend — Anomaly Detection</span>
+            {isIndiaState && backendStats && (
+              <span style={{ fontSize: '0.52rem', color: '#4a8060', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 4, padding: '2px 6px' }}>
+                🇮🇳 {backendStats.source || 'India Official Data'}
+              </span>
+            )}
+          </div>
           {anomalyCount > 0 && (
             <div style={{ padding: '4px 8px', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.15)', borderRadius: 5, fontSize: '0.62rem', color: '#eab308', marginBottom: 8 }}>
               ⚠ {anomalyCount} anomalous year{anomalyCount > 1 ? 's' : ''} detected
@@ -612,10 +598,13 @@ export function CountryPanel({ country, disease, activeTab }: Props) {
       )}
 
       {/* Forecast */}
-      {forecast.length > 0 && (
+      {!backendLoading && forecast.length > 0 && (
         <div style={S.card}>
           <span style={S.label}>AI Forecast — Next 5 Years · Prophet + LinReg</span>
-          <div style={{ fontSize: '0.62rem', color: '#3a5a78', marginBottom: 8 }}>R² = {regression.r2.toFixed(3)} · Trend: {regression.slope > 0 ? '↑' : '↓'} {Math.abs(regression.slope / (trendData[0]?.cases || 1) * 100).toFixed(1)}%/yr</div>
+          <div style={{ fontSize: '0.62rem', color: '#3a5a78', marginBottom: 8 }}>
+            R² = {regression.r2.toFixed(3)} · Trend: {regression.slope > 0 ? '↑' : '↓'} {Math.abs(regression.slope / (trendData[0]?.cases || 1) * 100).toFixed(1)}%/yr
+            {isIndiaState && <span style={{ color: '#4a7060', marginLeft: 8 }}>· Real NCVBDC data</span>}
+          </div>
           <ForecastChart data={forecast} disease={disease} />
         </div>
       )}
@@ -640,35 +629,57 @@ export function CountryPanel({ country, disease, activeTab }: Props) {
       <div style={S.card}>
         <span style={S.label}>Time-to-Intervention Clock</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '6px 0' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', fontWeight: 200, color: isAlarming ? '#ef4444' : '#eab308', fontFamily: 'Inter,sans-serif', lineHeight: 1 }}>{isAlarming ? '48' : '120'}</div>
-            <div style={{ fontSize: '0.55rem', color: '#3a5a78', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 2 }}>Hours</div>
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: '2.2rem', fontWeight: 200, color: isAlarming ? '#f87171' : '#eab308', fontFamily: 'Inter,sans-serif', lineHeight: 1 }}>{isAlarming ? '48' : '120'}</div>
+            <div style={{ fontSize: '0.58rem', color: '#4a6a88', letterSpacing: '0.14em', textTransform: 'uppercase' as const, marginTop: 3, fontWeight: 500 }}>Hours</div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.68rem', color: isAlarming ? '#f87171' : '#eab308', fontFamily: 'Inter,sans-serif', fontWeight: 500, marginBottom: 4 }}>
+            <div style={{ fontSize: '0.72rem', color: isAlarming ? '#f87171' : '#eab308', fontFamily: 'Inter,sans-serif', fontWeight: 600, marginBottom: 5 }}>
               {isAlarming ? 'Urgent — Immediate response required' : 'Monitoring — Proactive response recommended'}
             </div>
-            <div style={{ fontSize: '0.62rem', color: '#3a5a78' }}>
-              {isAlarming ? 'Cases are above threshold. Mobilize response teams within 48 hours.' : 'Cases within acceptable range. Continue monitoring and prepare contingencies.'}
+            <div style={{ fontSize: '0.65rem', color: '#5a7898', lineHeight: 1.5 }}>
+              {isAlarming
+                ? 'Cases above threshold. Mobilize response teams within 48 hours.'
+                : 'Cases within acceptable range. Continue monitoring and prepare contingencies.'}
             </div>
           </div>
         </div>
-        {/* Urgency bar */}
+        {/* Static urgency bar — no animation */}
         <div style={{ height: 4, background: 'rgba(0,80,120,0.15)', borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(100, outbreakRisk.score)}%` }}
-            transition={{ duration: 1.2, ease: 'easeOut' }}
-            style={{ height: '100%', background: `linear-gradient(to right, #22c55e, #eab308, ${isAlarming ? '#ef4444' : '#f97316'})`, borderRadius: 2 }}
-          />
+          <div style={{ height: '100%', width: `${Math.min(100, outbreakRisk.score)}%`, background: `linear-gradient(to right, #22c55e, #eab308, ${isAlarming ? '#ef4444' : '#f97316'})`, borderRadius: 2 }} />
         </div>
       </div>
 
+      {/* ── Simulation Period Selector ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, padding: '8px 14px', background: 'rgba(0,15,38,0.5)', border: '1px solid rgba(0,80,120,0.1)', borderRadius: 8 }}>
+        <span style={{ fontSize: '0.58rem', color: '#3a5a78', letterSpacing: '0.15em', textTransform: 'uppercase' as const, fontWeight: 500, fontFamily: 'Inter,sans-serif' }}>
+          Simulation Period
+        </span>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 6 }}>
+          {([30, 60, 90] as const).map(d => (
+            <button key={d} onClick={() => setDays(d)}
+              style={{ padding: '3px 12px', fontSize: '0.6rem', letterSpacing: '0.06em', borderRadius: 5, border: 'none', cursor: 'pointer', fontFamily: 'Inter,sans-serif', background: days === d ? 'rgba(0,160,220,0.55)' : 'rgba(10,30,55,0.8)', color: days === d ? '#d8f0ff' : '#3a5a78', fontWeight: days === d ? 600 : 400, transition: 'all 0.18s ease' }}>
+              {d} Days
+            </button>
+          ))}
+        </div>
+        <span style={{ marginLeft: 'auto', fontSize: '0.55rem', color: '#1e3040' }}>
+          {isIndiaState ? `🇮🇳 ${country.country} State` : region !== 'all' ? `Region: ${region}` : 'Global view'}
+        </span>
+      </div>
+
       {/* ── Intervene Spread ── */}
-      <InterveneSpreadSection disease={disease} />
+      <InterveneSpreadSection
+        disease={disease} region={region} days={days}
+        active={simActive} onToggle={handleSimToggle}
+        locationLabel={isIndiaState ? `${country.country} (State)` : region !== 'all' ? region : 'Global'}
+      />
 
       {/* ── Projected Spread ── */}
-      <ProjectedSpreadSection country={country} trendData={trendData} />
+      <ProjectedSpreadSection
+        country={country} trendData={trendData} region={region} days={days}
+        intFactor={Math.max(0.05, 0.32 * (1 - Math.min(0.92, Array.from(simActive).reduce((s, id) => s + (INTERVENTIONS.find(i => i.id === id)?.reduction || 0), 0))))}
+      />
     </div>
   );
 
@@ -747,18 +758,43 @@ export function CountryPanel({ country, disease, activeTab }: Props) {
               {gene.omimId && <span style={{ fontSize: '0.55rem', color: '#2e4a62' }}>OMIM:{gene.omimId}</span>}
             </div>
             <div style={{ fontSize: '0.65rem', color: '#6a90a8', fontFamily: 'Inter,sans-serif', marginBottom: 5, paddingLeft: 26 }}>{gene.fullName} · Chr {gene.chromosome}</div>
-            <div style={{ paddingLeft: 26 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <div style={{ flex: 1, height: 4, background: 'rgba(0,80,120,0.2)', borderRadius: 2, overflow: 'hidden' }}>
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${gene.evidenceScore * 100}%` }} transition={{ duration: 0.7, delay: i * 0.05 }}
-                    style={{ height: '100%', background: gene.evidenceScore > 0.85 ? '#22c55e' : gene.evidenceScore > 0.7 ? '#60b8dc' : '#eab308', borderRadius: 2 }} />
+            <div style={{ paddingLeft: 26, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+              {/* Left: type + function */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 3 }}>
+                  <span style={{ fontSize: '0.58rem', color: '#4a6785' }}>Type: <span style={{ color: '#6a90a8' }}>{gene.associationType}</span></span>
                 </div>
-                <span style={{ fontSize: '0.62rem', color: '#8ab8d0', fontFamily: 'JetBrains Mono,monospace', flexShrink: 0 }}>{(gene.evidenceScore * 100).toFixed(0)}%</span>
+                <div style={{ fontSize: '0.58rem', color: '#3a5a78' }}>{gene.function}</div>
               </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <span style={{ fontSize: '0.58rem', color: '#4a6785' }}>Type: <span style={{ color: '#6a90a8' }}>{gene.associationType}</span></span>
+              {/* Right: Evidence Strength percentage badge */}
+              <div
+                style={{ textAlign: 'right' as const, flexShrink: 0, minWidth: 72 }}
+                title="Confidence score based on aggregated genomic and clinical evidence"
+              >
+                <div style={{ fontSize: '0.47rem', color: '#2e4a62', letterSpacing: '0.13em', textTransform: 'uppercase' as const, marginBottom: 2, fontFamily: 'Inter,sans-serif', fontWeight: 500 }}>
+                  Evidence Strength
+                </div>
+                <div style={{
+                  fontSize: '1.3rem',
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  color: gene.evidenceScore >= 0.90
+                    ? '#22c55e'
+                    : gene.evidenceScore >= 0.75
+                    ? '#60b8dc'
+                    : '#8ab8a8',
+                  textShadow: gene.evidenceScore >= 0.90
+                    ? '0 0 10px rgba(34,197,94,0.28)'
+                    : gene.evidenceScore >= 0.75
+                    ? '0 0 10px rgba(96,184,220,0.28)'
+                    : 'none',
+                  cursor: 'default',
+                }}>
+                  {(gene.evidenceScore * 100).toFixed(0)}%
+                </div>
               </div>
-              <div style={{ fontSize: '0.58rem', color: '#3a5a78', marginTop: 2 }}>{gene.function}</div>
             </div>
           </div>
         ))}

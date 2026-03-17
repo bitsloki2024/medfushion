@@ -432,6 +432,40 @@ export function buildSpreadArcs(disease: DiseaseKey, focusCountry?: string, peri
   return arcs;
 }
 
+// ─── Live backend globe data fetcher ──────────────────────────────────────────
+const BACKEND = 'http://localhost:8000';
+
+export async function fetchGlobeData(disease: DiseaseKey, region?: string): Promise<GlobePoint[]> {
+  try {
+    const url = `${BACKEND}/api/v1/globe/heatmap?disease=${disease}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`Backend ${res.status}`);
+    const raw: any[] = await res.json();
+
+    // Map backend snake_case → frontend camelCase (already matches GlobePoint)
+    const points: GlobePoint[] = raw.map(p => ({
+      lat:        p.lat,
+      lng:        p.lng,
+      country:    p.country,
+      iso2:       p.iso2 ?? 'XX',
+      risk_score: p.risk_score ?? 0,
+      cases:      p.cases ?? 0,
+      deaths:     p.deaths ?? 0,
+      population: p.population ?? 1_000_000,
+      region:     p.region ?? 'Unknown',
+    }));
+
+    // Optional region filter (backend doesn't filter by region)
+    if (region && region !== 'all' && region !== 'All Regions') {
+      return points.filter(p => p.region.toLowerCase() === region.toLowerCase());
+    }
+    return points;
+  } catch {
+    // Fallback to client-side mock data when backend is unreachable
+    return buildGlobeData(disease, region);
+  }
+}
+
 // ─── Risk color mapper ─────────────────────────────────────────────────────────
 export function getRiskColor(score: number): string {
   if (score < 0.25) return '#22c55e';

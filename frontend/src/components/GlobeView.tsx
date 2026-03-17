@@ -16,7 +16,32 @@ interface Props {
   selectedCountry: GlobePoint | null;
   heroMode?: boolean;
   heatmapMode?: boolean;
+  indiaMode?: boolean;
+  onIndiaClick?: () => void;
+  focusCoords?: { lat: number; lng: number; altitude: number } | null;
 }
+
+// ── Decorative network arcs (always visible, subtle cyan) ────────────────────
+const DECORATIVE_ARCS: Array<{ startLat: number; startLng: number; endLat: number; endLng: number; color: string; intensity: number }> = [
+  { startLat: 40.71, startLng: -74.01, endLat: 51.51, endLng: -0.13,  color: 'rgba(0,212,255,0.18)', intensity: 0.04 }, // NYC→London
+  { startLat: 51.51, startLng: -0.13,  endLat: 52.52, endLng: 13.40,  color: 'rgba(0,212,255,0.15)', intensity: 0.04 }, // London→Berlin
+  { startLat: 48.85, startLng: 2.35,   endLat: 41.90, endLng: 12.50,  color: 'rgba(0,212,255,0.14)', intensity: 0.04 }, // Paris→Rome
+  { startLat: 55.75, startLng: 37.62,  endLat: 25.20, endLng: 55.27,  color: 'rgba(0,212,255,0.16)', intensity: 0.04 }, // Moscow→Dubai
+  { startLat: 25.20, startLng: 55.27,  endLat: 28.61, endLng: 77.21,  color: 'rgba(0,212,255,0.17)', intensity: 0.04 }, // Dubai→Delhi
+  { startLat: 28.61, startLng: 77.21,  endLat: 39.91, endLng: 116.39, color: 'rgba(0,212,255,0.16)', intensity: 0.04 }, // Delhi→Beijing
+  { startLat: 39.91, startLng: 116.39, endLat: 35.68, endLng: 139.69, color: 'rgba(0,212,255,0.15)', intensity: 0.04 }, // Beijing→Tokyo
+  { startLat: 35.68, startLng: 139.69, endLat: -33.87, endLng: 151.21,color: 'rgba(0,212,255,0.13)', intensity: 0.04 }, // Tokyo→Sydney
+  { startLat: 22.30, startLng: 114.18, endLat: 1.35,  endLng: 103.82, color: 'rgba(0,212,255,0.15)', intensity: 0.04 }, // HK→Singapore
+  { startLat: 1.35,  startLng: 103.82, endLat: -6.17, endLng: 106.83, color: 'rgba(0,212,255,0.14)', intensity: 0.04 }, // Singapore→Jakarta
+  { startLat: 40.71, startLng: -74.01, endLat: 19.43, endLng: -99.13, color: 'rgba(0,212,255,0.14)', intensity: 0.04 }, // NYC→Mexico City
+  { startLat: 19.43, startLng: -99.13, endLat: -23.55, endLng: -46.64,color: 'rgba(0,212,255,0.13)', intensity: 0.04 }, // MexCity→São Paulo
+  { startLat: 6.52,  startLng: 3.38,   endLat: -1.29, endLng: 36.82,  color: 'rgba(0,212,255,0.15)', intensity: 0.04 }, // Lagos→Nairobi
+  { startLat: -1.29, startLng: 36.82,  endLat: -33.93, endLng: 18.42, color: 'rgba(0,212,255,0.13)', intensity: 0.04 }, // Nairobi→Cape Town
+  { startLat: 30.04, startLng: 31.24,  endLat: 6.52,  endLng: 3.38,   color: 'rgba(0,212,255,0.14)', intensity: 0.04 }, // Cairo→Lagos
+  { startLat: 40.71, startLng: -74.01, endLat: 48.85, endLng: 2.35,   color: 'rgba(0,212,255,0.16)', intensity: 0.04 }, // NYC→Paris
+  { startLat: 25.20, startLng: 55.27,  endLat: 30.04, endLng: 31.24,  color: 'rgba(0,212,255,0.15)', intensity: 0.04 }, // Dubai→Cairo
+  { startLat: 51.51, startLng: -0.13,  endLat: 55.75, endLng: 37.62,  color: 'rgba(0,212,255,0.14)', intensity: 0.04 }, // London→Moscow
+];
 
 function addStarfield(scene: THREE.Scene): void {
   const count = 5000;
@@ -55,15 +80,38 @@ function findGlobePoint(geoName: string, globeData: GlobePoint[]): GlobePoint | 
   );
 }
 
+/** Fuzzy-match a GeoJSON India state name to our GlobePoint array (region === 'India') */
+function findIndiaState(geoStateName: string, globeData: GlobePoint[]): GlobePoint | null {
+  const norm = (s: string) =>
+    s.toLowerCase()
+      .replace(/nct of /g, '')
+      .replace(/&/g, 'and')
+      .replace(/[^a-z\s]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
+  const gn = norm(geoStateName);
+  const states = globeData.filter(p => p.region === 'India');
+  return (
+    states.find(p => norm(p.country) === gn) ||
+    states.find(p => {
+      const pn = norm(p.country);
+      return gn.includes(pn) || pn.includes(gn);
+    }) ||
+    null
+  );
+}
+
 export default function GlobeView({
   globeData, spreadArcs, onCountrySelect, selectedCountry,
-  heroMode = false, heatmapMode = false
+  heroMode = false, heatmapMode = false,
+  indiaMode = false, onIndiaClick, focusCoords,
 }: Props) {
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isInitialized, setIsInitialized] = useState(false);
   const [countriesGeoJson, setCountriesGeoJson] = useState<any[]>([]);
+  const [indiaStatesGeoJson, setIndiaStatesGeoJson] = useState<any[]>([]);
 
   // Load country GeoJSON for polygon boundaries
   useEffect(() => {
@@ -72,6 +120,15 @@ export default function GlobeView({
       .then(data => setCountriesGeoJson(data.features))
       .catch(() => {}); // fail silently — dots still work
   }, []);
+
+  // Lazy-load India state GeoJSON when indiaMode activates
+  useEffect(() => {
+    if (!indiaMode || indiaStatesGeoJson.length > 0) return;
+    fetch('https://gist.githubusercontent.com/jbrobst/56c13bbbf9d97d187fea01ca62ea5112/raw/e388c4cae20aa53cb5090210a42ebb9b765c0a36/india_states.geojson')
+      .then(r => r.json())
+      .then(data => setIndiaStatesGeoJson(data.features))
+      .catch(() => {});
+  }, [indiaMode, indiaStatesGeoJson.length]);
 
   useEffect(() => {
     const measure = () => {
@@ -106,24 +163,31 @@ export default function GlobeView({
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.8; // increased for brightness
 
-        // Add ambient light so continents are clearly visible
-        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        // Ambient fill — cool blue-slate tone
+        const ambient = new THREE.AmbientLight(0x334466, 1.2);
         ambient.name = 'ambientLight';
         if (!scene.getObjectByName('ambientLight')) scene.add(ambient);
 
-        // Directional sunlight from upper-right
-        const dirLight = new THREE.DirectionalLight(0xc8e8ff, 0.9);
+        // Key light — bright blue from upper-right
+        const dirLight = new THREE.DirectionalLight(0x6688cc, 2.0);
         dirLight.position.set(2, 1, 1);
         dirLight.name = 'dirLight';
         if (!scene.getObjectByName('dirLight')) scene.add(dirLight);
 
+        // Rim light — deep blue from lower-left for depth
+        const rimLight = new THREE.DirectionalLight(0x0033aa, 0.8);
+        rimLight.position.set(-2, -1, -1);
+        rimLight.name = 'rimLight';
+        if (!scene.getObjectByName('rimLight')) scene.add(rimLight);
+
         camera.far = 5000;
         camera.updateProjectionMatrix();
 
-        controls.autoRotate      = true;
-        controls.autoRotateSpeed = heroMode ? 0.22 : 0.18;
+        controls.autoRotate      = false;   // no looping — movement only on user drag
+        controls.enableRotate    = true;    // full drag-to-rotate in all directions
+        controls.rotateSpeed     = 0.6;     // smooth, responsive
         controls.enableDamping   = true;
-        controls.dampingFactor   = 0.06;
+        controls.dampingFactor   = 0.05;
         controls.minDistance     = heroMode ? 150 : 130;
         controls.maxDistance     = heroMode ? 600 : 480;
         controls.enablePan       = false;
@@ -134,36 +198,82 @@ export default function GlobeView({
     return () => clearTimeout(timer);
   }, [isInitialized, heroMode]);
 
-  // Zoom to selected country
+  // Zoom to selected country / state
   useEffect(() => {
     if (!selectedCountry || !globeRef.current) return;
     const { lat, lng } = selectedCountry;
+    const isIndiaState = selectedCountry.region === 'India';
+    const altitude = isIndiaState ? 0.5 : 1.4; // tighter zoom for India states
     setTimeout(() => {
       try {
-        globeRef.current?.pointOfView({ lat, lng, altitude: 1.4 }, 1400);
-        const controls = globeRef.current?.controls?.();
-        if (controls) controls.autoRotateSpeed = 0.06;
+        globeRef.current?.pointOfView({ lat, lng, altitude }, 1400);
       } catch (_) {}
     }, 80);
   }, [selectedCountry]);
 
-  // Restore rotation speed when country deselected
+  // Zoom to arbitrary coords (e.g. India overview) without opening a panel
   useEffect(() => {
-    if (!selectedCountry && globeRef.current) {
-      setTimeout(() => {
-        try {
-          const controls = globeRef.current?.controls?.();
-          if (controls) controls.autoRotateSpeed = heroMode ? 0.22 : 0.18;
-        } catch (_) {}
-      }, 80);
-    }
+    if (!focusCoords || !globeRef.current) return;
+    setTimeout(() => {
+      try {
+        globeRef.current?.pointOfView(focusCoords, 1400);
+      } catch (_) {}
+    }, 80);
+  }, [focusCoords]);
+
+  // No auto-rotation restore needed — rotation is purely user-driven
+  useEffect(() => {
+    // Intentionally empty — autoRotate is disabled globally
   }, [selectedCountry, heroMode]);
 
   // Max cases for heatmap normalization
   const maxCases = useMemo(() => Math.max(...globeData.map(p => p.cases), 1), [globeData]);
 
-  // Polygon color based on risk score
+  // ── Memoized point callbacks — stable references, no per-render recreation ──
+  const pointColor = useCallback((d: object) => {
+    const p = d as GlobePoint;
+    if (heatmapMode) {
+      const intensity = Math.min(1, p.cases / maxCases);
+      const r = Math.floor(255 * Math.min(1, intensity * 2.2));
+      const g = Math.floor(200 * Math.max(0, 1 - intensity * 1.8));
+      return `rgba(${r},${g},40,0.82)`;
+    }
+    return getRiskColor(p.risk_score);
+  }, [heatmapMode, maxCases]);
+
+  const pointAltitude = useCallback((d: object) => {
+    if (heatmapMode) return 0.005;
+    return 0.001 + (d as GlobePoint).risk_score * 0.012;
+  }, [heatmapMode]);
+
+  const pointRadius = useCallback((d: object) => {
+    const p = d as GlobePoint;
+    if (heatmapMode) {
+      const base = Math.sqrt(p.cases) / 500;
+      return Math.min(8, Math.max(2, base));
+    }
+    const base = Math.sqrt(p.cases) / 3200;
+    return Math.min(heroMode ? 1.5 : 1.2, Math.max(0.2, base));
+  }, [heatmapMode, heroMode]);
+
+  // Polygon color based on risk score (handles both country and India state modes)
   const polygonCapColor = useCallback((feat: any) => {
+    if (indiaMode) {
+      // India state polygon
+      const stateName = feat.properties?.ST_NM || '';
+      const point = findIndiaState(stateName, globeData);
+      if (!point) return 'rgba(20,8,0,0.05)';
+      // Highlight selected state
+      if (selectedCountry?.region === 'India' && selectedCountry.country === point.country) {
+        return 'rgba(255,153,51,0.45)';
+      }
+      const risk = point.risk_score;
+      if (risk > 0.75) return 'rgba(239,68,68,0.22)';
+      if (risk > 0.5)  return 'rgba(249,115,22,0.16)';
+      if (risk > 0.25) return 'rgba(234,179,8,0.12)';
+      return 'rgba(34,197,94,0.09)';
+    }
+    // Country mode
     const name = feat.properties?.ADMIN || feat.properties?.NAME || '';
     if (
       selectedCountry &&
@@ -185,18 +295,38 @@ export default function GlobeView({
     if (risk > 0.5)  return 'rgba(249,115,22,0.11)';
     if (risk > 0.25) return 'rgba(234,179,8,0.08)';
     return 'rgba(34,197,94,0.06)';
-  }, [globeData, selectedCountry, heatmapMode, maxCases]);
+  }, [globeData, selectedCountry, heatmapMode, maxCases, indiaMode]);
 
-  // Polygon altitude — slightly elevated for selected country
+  // Polygon altitude — slightly elevated for selected item
   const polygonAltitude = useCallback((feat: any) => {
+    if (indiaMode) {
+      const stateName = feat.properties?.ST_NM || '';
+      const point = findIndiaState(stateName, globeData);
+      if (!point) return 0.002;
+      return selectedCountry?.country === point.country ? 0.015 : 0.004;
+    }
     if (!selectedCountry) return 0.003;
     const name = feat.properties?.ADMIN || feat.properties?.NAME || '';
     const isSelected = findGlobePoint(name, [selectedCountry]) !== null;
     return isSelected ? 0.01 : 0.003;
-  }, [selectedCountry]);
+  }, [selectedCountry, indiaMode, globeData]);
 
   // Polygon tooltip
   const polygonLabel = useCallback((feat: any) => {
+    if (indiaMode) {
+      const stateName = feat.properties?.ST_NM || '';
+      const point = findIndiaState(stateName, globeData);
+      if (!point) return `<div style="background:rgba(10,4,0,0.9);border:1px solid rgba(200,100,0,0.2);border-radius:8px;padding:8px 12px;font-family:Inter,sans-serif;color:#c09060;font-size:12px;">${stateName}</div>`;
+      const riskColor = getRiskColor(point.risk_score);
+      return `<div style="background:rgba(10,4,0,0.96);border:1px solid rgba(255,153,51,0.25);border-radius:10px;padding:12px 16px;font-family:Inter,sans-serif;color:#e8d8c0;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:180px;">
+        <div style="font-size:13px;font-weight:500;color:#ffe8c0;margin-bottom:8px;">🇮🇳 ${point.country}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;margin-bottom:8px;">
+          <div><div style="font-size:9px;color:#8a6040;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1px;">Cases</div><div style="color:#d0b890;">${point.cases.toLocaleString()}</div></div>
+          <div><div style="font-size:9px;color:#8a6040;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1px;">Risk</div><div style="color:${riskColor};font-weight:500;">${(point.risk_score*100).toFixed(0)}%</div></div>
+        </div>
+        <div style="font-size:10px;color:#6a4020;text-align:right;">Click to explore →</div>
+      </div>`;
+    }
     const name = feat.properties?.ADMIN || feat.properties?.NAME || '';
     const point = findGlobePoint(name, globeData);
     if (!point) return `<div style="background:rgba(0,8,24,0.9);border:1px solid rgba(0,100,160,0.2);border-radius:8px;padding:8px 12px;font-family:Inter,sans-serif;color:#80a8c0;font-size:12px;">${name}</div>`;
@@ -209,25 +339,33 @@ export default function GlobeView({
       </div>
       <div style="font-size:10px;color:#2a4055;text-align:right;">Click to explore →</div>
     </div>`;
-  }, [globeData]);
+  }, [globeData, indiaMode]);
 
   // Handle polygon click → find matching GlobePoint
   const handlePolygonClick = useCallback((feat: any) => {
+    if (indiaMode) {
+      const stateName = feat.properties?.ST_NM || '';
+      const point = findIndiaState(stateName, globeData);
+      if (point) onCountrySelect(point);
+      return;
+    }
     const name = feat.properties?.ADMIN || feat.properties?.NAME || '';
     const point = findGlobePoint(name, globeData);
     if (point) {
       onCountrySelect(point);
+    } else if (name === 'India' || name.toLowerCase().includes('india')) {
+      // India polygon clicked — country-level India replaced by states, so
+      // enter India-state mode (zoom to India centre, show state picker)
+      onIndiaClick?.();
     } else {
-      // Create a synthetic point so the panel still opens
-      const lat = feat.properties?.LAT ?? 0;
-      const lng = feat.properties?.LON ?? 0;
+      // Unknown country — still open panel with zero data rather than wrong coords
       onCountrySelect({
-        country: name, lat, lng,
+        country: name, lat: 0, lng: 0,
         cases: 0, deaths: 0, population: 1_000_000,
         risk_score: 0, iso2: name.slice(0, 2).toUpperCase(), region: 'Unknown'
       } as GlobePoint);
     }
-  }, [globeData, onCountrySelect]);
+  }, [globeData, onCountrySelect, onIndiaClick, indiaMode]);
 
   // Handle dot click (existing behaviour preserved)
   const handlePointClick = useCallback((point: object) => {
@@ -273,53 +411,34 @@ export default function GlobeView({
           globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
           bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
           backgroundColor="rgba(0,8,20,1)"
-          atmosphereColor="#2266ff"
-          atmosphereAltitude={heroMode ? 0.22 : 0.16}
+          atmosphereColor="#00aaff"
+          atmosphereAltitude={heroMode ? 0.28 : 0.20}
 
-          // ── Country polygons (boundaries + click-to-select) ──────────
-          polygonsData={countriesGeoJson}
+          // ── Country / India-state polygons (boundaries + click-to-select) ──
+          polygonsData={indiaMode ? indiaStatesGeoJson : countriesGeoJson}
           polygonCapColor={polygonCapColor}
-          polygonSideColor="rgba(0,50,90,0.05)"
-          polygonStrokeColor="rgba(0,160,220,0.4)"
+          polygonSideColor={indiaMode ? 'rgba(180,80,0,0.06)' : 'rgba(0,50,90,0.05)'}
+          polygonStrokeColor={indiaMode ? 'rgba(255,153,51,0.55)' : 'rgba(0,160,220,0.4)'}
           polygonAltitude={polygonAltitude}
           polygonLabel={polygonLabel}
           onPolygonClick={handlePolygonClick as any}
+          polygonsTransitionDuration={500}
 
           // ── Risk dots ────────────────────────────────────────────────
           pointsData={globeData}
           pointLat="lat"
           pointLng="lng"
-          pointColor={(d: object) => {
-            const p = d as GlobePoint;
-            if (heatmapMode) {
-              const intensity = Math.min(1, p.cases / maxCases);
-              const r = Math.floor(255 * Math.min(1, intensity * 2.2));
-              const g = Math.floor(200 * Math.max(0, 1 - intensity * 1.8));
-              return `rgba(${r},${g},40,0.82)`;
-            }
-            return getRiskColor(p.risk_score);
-          }}
-          pointAltitude={(d: object) => {
-            if (heatmapMode) return 0.005;
-            return 0.001 + (d as GlobePoint).risk_score * 0.012;
-          }}
-          pointRadius={(d: object) => {
-            const p = d as GlobePoint;
-            if (heatmapMode) {
-              // Large heat blobs
-              const base = Math.sqrt(p.cases) / 500;
-              return Math.min(8, Math.max(2, base));
-            }
-            const base = Math.sqrt(p.cases) / 3200;
-            return Math.min(heroMode ? 1.5 : 1.2, Math.max(0.2, base));
-          }}
+          pointColor={pointColor}
+          pointAltitude={pointAltitude}
+          pointRadius={pointRadius}
           pointLabel={pointLabel}
           onPointClick={handlePointClick as any}
           pointsMerge={false}
-          pointResolution={10}
+          pointResolution={24}
+          pointsTransitionDuration={600}
 
-          // ── Spread arcs ──────────────────────────────────────────────
-          arcsData={spreadArcs}
+          // ── Spread arcs + decorative network lines ───────────────────
+          arcsData={[...DECORATIVE_ARCS, ...spreadArcs]}
           arcStartLat={(d: object) => (d as SpreadArc).startLat}
           arcStartLng={(d: object) => (d as SpreadArc).startLng}
           arcEndLat={(d: object) => (d as SpreadArc).endLat}
@@ -339,6 +458,17 @@ export default function GlobeView({
           ringMaxRadius={2.5}
           ringPropagationSpeed={1.8}
           ringRepeatPeriod={1000}
+
+          // ── India state name labels (visible when indiaMode active) ──
+          labelsData={indiaMode ? globeData.filter(p => p.region === 'India') : []}
+          labelLat={(d: object) => (d as GlobePoint).lat}
+          labelLng={(d: object) => (d as GlobePoint).lng}
+          labelText={(d: object) => (d as GlobePoint).country}
+          labelSize={0.38}
+          labelDotRadius={0.25}
+          labelColor={() => 'rgba(200,240,255,0.92)'}
+          labelResolution={3}
+          labelAltitude={0.006}
         />
       )}
 

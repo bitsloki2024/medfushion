@@ -33,6 +33,8 @@ logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
 
 # ─── Data sources ─────────────────────────────────────────────────────────────
 from data_sources import disease_sh, who_gho, cdc, ecdc, fluview, promed, ihme, healthmap
+from data_sources import india_states
+from data_sources.india_states import STATES_META as STATES_META_PY
 
 # ─── ML modules ───────────────────────────────────────────────────────────────
 from ml.anomaly  import run_isolation_forest
@@ -110,46 +112,46 @@ def globe_heatmap(disease: str = Query("covid")):
         points = disease_sh.fetch_covid()
         # Supplement with ECDC Europe data for better EU coverage
         eu_points = ecdc.fetch_covid_europe()
-        # Merge: ECDC fills in European countries not in Disease.sh
         existing_countries = {p["country"] for p in points}
         extras = [p for p in eu_points if p["country"] not in existing_countries]
-        return points + extras
+        points = points + extras
+        # Replace country-level India with state-level data
+        points = [p for p in points if p["country"] != "India"]
+        points += india_states.get_states_for_disease("covid")
+        return points
 
     if disease == "flu":
-        # Disease.sh gives global flu proxy; return COVID points scaled for flu context
-        flu_raw = disease_sh.fetch_flu()
-        # Flu heatmap: use COVID points as a proxy (same global spread pattern)
-        # but normalised differently and labeled as flu
         covid_points = disease_sh.fetch_covid()
         flu_points = []
         for p in covid_points:
+            if p["country"] == "India":
+                continue  # skip country-level India; add states below
             flu_p = dict(p)
-            # Scale cases to flu-realistic range (~1B/year globally)
             flu_p["cases"]  = int(p["cases"] * 0.03)
             flu_p["deaths"] = int(p["deaths"] * 0.01)
             flu_p["source"] = "Disease.sh (flu proxy)"
             flu_points.append(flu_p)
+        flu_points += india_states.get_states_for_disease("flu")
         return flu_points
 
     if disease == "malaria":
         points = who_gho.fetch_malaria()
-        # Supplement with IHME India if available
-        india_pts = ihme.fetch_india_heatmap_point("malaria")
-        if india_pts:
-            existing = {p["country"] for p in points}
-            points += [p for p in india_pts if p["country"] not in existing]
+        # Remove country-level India entry — replaced by state-level data
+        points = [p for p in points if p["country"] != "India"]
+        points += india_states.get_states_for_disease("malaria")
         return points
 
     if disease == "tb":
         points = who_gho.fetch_tb()
-        india_pts = ihme.fetch_india_heatmap_point("tb")
-        if india_pts:
-            existing = {p["country"] for p in points}
-            points += [p for p in india_pts if p["country"] not in existing]
+        points = [p for p in points if p["country"] != "India"]
+        points += india_states.get_states_for_disease("tb")
         return points
 
     if disease == "dengue":
-        return who_gho.fetch_dengue()
+        points = who_gho.fetch_dengue()
+        points = [p for p in points if p["country"] != "India"]
+        points += india_states.get_states_for_disease("dengue")
+        return points
 
     raise HTTPException(400, f"Unknown disease '{disease}'. Use: covid, flu, malaria, tb, dengue")
 
@@ -161,8 +163,55 @@ def country_stats(
 ):
     """
     Detailed stats + ML analysis (anomaly detection, risk score) for one country.
+    Also handles Indian state names (returns state-level data from india_states).
     """
     disease  = disease.lower()
+
+    # ── India state shortcut ────────────────────────────────────────────────────
+    if india_states.is_india_state(country):
+        history = india_states.get_state_history(country, disease)
+        if not history or not history.get("years"):
+            raise HTTPException(404, f"No {disease} data for {country}")
+
+        years  = history["years"]
+        cases  = history["cases"]
+        deaths = history["deaths"]
+
+        meta = STATES_META_PY.get(country, {})
+        pop  = meta[2] if meta else 10_000_000
+
+        anomaly_flags = run_isolation_forest([float(c) for c in cases])
+        anomaly_years = [years[i] for i, flag in enumerate(anomaly_flags) if flag]
+
+        growth = (cases[-1] - cases[-2]) / max(cases[-2], 1) if len(cases) >= 2 else 0.0
+        risk   = compute_risk_score(cases[-1] if cases else 0, pop, growth)
+
+        trend_data = [
+            {"year": years[i], "cases": cases[i], "deaths": deaths[i], "is_anomaly": anomaly_flags[i]}
+            for i in range(len(years))
+        ]
+
+        return {
+            "country":         country,
+            "disease":         disease,
+            "population":      pop,
+            "total_cases":     sum(cases),
+            "latest_cases":    cases[-1] if cases else 0,
+            "total_deaths":    sum(deaths),
+            "risk_score":      risk["score"],
+            "risk_label":      risk["label"],
+            "is_alarming":     risk["is_alarming"],
+            "growth_rate":     round(growth, 4),
+            "fatality_rate":   round(sum(deaths) / max(sum(cases), 1), 6),
+            "data_confidence": 0.92,
+            "source":          history.get("source", "India Official Data"),
+            "trend":           trend_data,
+            "anomalies":       anomaly_years,
+            "years":           years,
+            "cases":           cases,
+            "is_india_state":  True,
+        }
+
     coords   = COUNTRY_COORDS.get(country)
     pop      = coords[2] if coords else 10_000_000
 
