@@ -183,7 +183,8 @@ export default function GlobeView({
         camera.far = 5000;
         camera.updateProjectionMatrix();
 
-        controls.autoRotate      = false;   // no looping — movement only on user drag
+        controls.autoRotate      = true;    // slow continuous rotation
+        controls.autoRotateSpeed = 0.25;   // very slow and smooth
         controls.enableRotate    = true;    // full drag-to-rotate in all directions
         controls.rotateSpeed     = 0.6;     // smooth, responsive
         controls.enableDamping   = true;
@@ -221,9 +222,11 @@ export default function GlobeView({
     }, 80);
   }, [focusCoords]);
 
-  // No auto-rotation restore needed — rotation is purely user-driven
+  // Pause rotation when a country is selected; resume when deselected
   useEffect(() => {
-    // Intentionally empty — autoRotate is disabled globally
+    if (!globeRef.current) return;
+    const controls = globeRef.current?.controls?.();
+    if (controls) controls.autoRotate = !selectedCountry;
   }, [selectedCountry, heroMode]);
 
   // Max cases for heatmap normalization
@@ -500,7 +503,7 @@ export default function GlobeView({
       {heroMode && countriesGeoJson.length > 0 && (
         <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, background: 'rgba(0,10,26,0.85)', border: '1px solid rgba(0,140,200,0.18)', borderRadius: 8, padding: '6px 12px', backdropFilter: 'blur(12px)' }}>
           <span style={{ fontSize: '0.58rem', color: '#4a7090', letterSpacing: '0.1em' }}>
-            {heatmapMode ? '🌡 Heatmap mode' : '🖱 Click any country'}
+            {heatmapMode ? 'Heatmap mode' : 'Click any country'}
           </span>
         </div>
       )}

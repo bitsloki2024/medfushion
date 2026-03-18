@@ -27,6 +27,13 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+# ─── Cosmo AI assistant ────────────────────────────────────────────────────────
+try:
+    from cosmo import chat as cosmo_chat
+    _COSMO_AVAILABLE = True
+except Exception:
+    _COSMO_AVAILABLE = False
+
 warnings.filterwarnings("ignore")
 logging.getLogger("prophet").setLevel(logging.ERROR)
 logging.getLogger("cmdstanpy").setLevel(logging.ERROR)
@@ -480,6 +487,31 @@ def disease_data(disease: str = Query("covid"), region: Optional[str] = None):
         "total_deaths":    total_deaths,
         "source":          points[0]["source"] if points else "unknown",
     }
+
+
+# ─── Cosmo AI Chatbot endpoint ─────────────────────────────────────────────────
+class CosmoRequest(BaseModel):
+    message: str
+    context: dict = {}
+
+
+@app.post("/api/cosmo/chat")
+async def cosmo_endpoint(body: CosmoRequest):
+    """
+    Cosmo AI assistant — accepts a user message + panel context,
+    returns a structured reply (and optional globe navigation action).
+    """
+    FALLBACK = {"reply": "I'm unable to find sufficient data for this request at the moment"}
+
+    if not _COSMO_AVAILABLE:
+        return {**FALLBACK, "error": "Cosmo is not configured. Please set GROQ_API_KEY in backend/.env"}
+
+    try:
+        result = await cosmo_chat(body.message, body.context)
+        return result
+    except Exception as e:
+        logging.error("Cosmo endpoint error: %s", e)
+        return FALLBACK
 
 
 if __name__ == "__main__":

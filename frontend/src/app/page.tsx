@@ -8,6 +8,7 @@ import { DISEASE_META, REGIONS, buildGlobeData, buildSpreadArcs, fetchGlobeData,
 import type { DiseaseKey, GlobePoint, SpreadArc } from '@/lib/disease-data';
 import { formatNumber } from '@/lib/utils';
 import { CountryPanel } from '@/components/CountryPanel';
+import CosmoTab from '@/components/CosmoTab';
 
 const GlobeView = dynamic(() => import('@/components/GlobeView'), {
   ssr: false,
@@ -30,13 +31,14 @@ const INDIA_INTVS = [
 ];
 
 function IndiaOverviewPanel({
-  indiaStates, disease, meta, onStateSelect, activeTab,
+  indiaStates, disease, meta, onStateSelect, activeTab, onCosmoAction,
 }: {
   indiaStates: GlobePoint[];
   disease: DiseaseKey;
   meta: { label: string; icon: string; color: string };
   onStateSelect: (name: string) => void;
-  activeTab: 'surveillance' | 'classification' | 'genomics' | 'therapeutics';
+  activeTab: 'surveillance' | 'classification' | 'genomics' | 'therapeutics' | 'ai-assistant';
+  onCosmoAction?: (action: { disease?: string; country?: string }) => void;
 }) {
   const [days, setDays]           = useState<30 | 60 | 90>(60);
   const [activeIntvs, setActiveIntvs] = useState<Set<string>>(new Set());
@@ -77,8 +79,8 @@ function IndiaOverviewPanel({
       <div style={{ ...SI.card, borderColor: `${riskColor}22`, background: 'rgba(0,20,45,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 500, color: '#f0f8ff', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em' }}>🇮🇳 India</div>
-            <div style={{ fontSize: '0.72rem', color: '#5a7a98', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>{meta.icon} {meta.label} · {indiaStates.length} states/UTs</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 500, color: '#f0f8ff', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em' }}>India</div>
+            <div style={{ fontSize: '0.72rem', color: '#5a7a98', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>{meta.label} · {indiaStates.length} states/UTs</div>
           </div>
           <div style={{ padding: '5px 12px', background: `${riskColor}18`, border: `1px solid ${riskColor}40`, borderRadius: 6, fontSize: '0.72rem', color: riskColor, fontWeight: 600 }}>{alarmCount} ALARMING</div>
         </div>
@@ -139,7 +141,7 @@ function IndiaOverviewPanel({
 
       {/* ── Spread Simulator ── */}
       <div style={SI.card}>
-        <span style={SI.label}>🇮🇳 India National · Projected Spread Simulation</span>
+        <span style={SI.label}>India National · Projected Spread Simulation</span>
         {/* Day selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <span style={{ fontSize: '0.58rem', color: '#3a5a78', letterSpacing: '0.15em', textTransform: 'uppercase' as const, fontWeight: 500, fontFamily: 'Inter,sans-serif' }}>Period</span>
@@ -200,7 +202,7 @@ function IndiaOverviewPanel({
 
       {/* CTA */}
       <div style={{ textAlign: 'center', padding: '14px 0', color: '#3a5a78', fontSize: '0.62rem', letterSpacing: '0.1em' }}>
-        🖱 Click any state on the globe or select from the dropdown above
+        Click any state on the globe or select from the dropdown above
       </div>
     </div>
   );
@@ -209,7 +211,7 @@ function IndiaOverviewPanel({
   if (activeTab === 'classification') return (
     <div style={{ padding: '1rem' }}>
       <div style={{ padding: '8px 14px', background: 'rgba(0,100,160,0.05)', border: '1px solid rgba(0,100,160,0.12)', borderRadius: 8, marginBottom: 14, fontSize: '0.62rem', color: '#4a6a82', fontFamily: 'Inter,sans-serif' }}>
-        🇮🇳 India national classification · {meta.icon} {classification.fullName}
+        India national classification · {classification.fullName}
       </div>
       <div style={SI.blueCard}>
         <span style={SI.blueLabel}>ICD Classification</span>
@@ -269,7 +271,7 @@ function IndiaOverviewPanel({
   if (activeTab === 'genomics') return (
     <div style={{ padding: '1rem' }}>
       <div style={{ padding: '8px 14px', background: 'rgba(0,100,160,0.05)', border: '1px solid rgba(0,100,160,0.12)', borderRadius: 8, marginBottom: 14, fontSize: '0.62rem', color: '#4a6a82', fontFamily: 'Inter,sans-serif' }}>
-        🇮🇳 India genomic surveillance · {meta.icon} {meta.label} disease-associated genes
+        India genomic surveillance · {meta.label} disease-associated genes
       </div>
       <div style={SI.blueCard}>
         <span style={SI.blueLabel}>Disease-Associated Genes · Ranked by Evidence</span>
@@ -303,11 +305,25 @@ function IndiaOverviewPanel({
     </div>
   );
 
+  // ── AI Chatbot tab ──────────────────────────────────────────────────────────
+  if (activeTab === 'ai-assistant') return (
+    <div style={{ height: '100%', padding: '0' }}>
+      <CosmoTab
+        country="India"
+        disease={disease}
+        cases={totalCases}
+        riskScore={alarmCount / Math.max(indiaStates.length, 1)}
+        region="South Asia"
+        onAction={onCosmoAction ?? (() => {})}
+      />
+    </div>
+  );
+
   // ── Therapeutics (default) ────────────────────────────────────────────────────
   return (
     <div style={{ padding: '1rem' }}>
       <div style={{ padding: '8px 14px', background: 'rgba(0,100,160,0.05)', border: '1px solid rgba(0,100,160,0.12)', borderRadius: 8, marginBottom: 14, fontSize: '0.62rem', color: '#4a6a82', fontFamily: 'Inter,sans-serif' }}>
-        🇮🇳 India treatment protocols · {meta.icon} {meta.label}
+        India treatment protocols · {meta.label}
       </div>
       <div style={SI.blueCard}>
         <span style={SI.blueLabel}>Treatment Protocols · {meta.label}</span>
@@ -351,6 +367,8 @@ function IndiaOverviewPanel({
       </div>
     </div>
   );
+
+  return null;
 }
 
 // ── Isolated clock — only this component re-renders every second ──
@@ -365,17 +383,18 @@ function LiveClock() {
 
 export default function Home() {
   const [disease, setDisease] = useState<DiseaseKey>('malaria');
+  const [diseaseSelected, setDiseaseSelected] = useState(false);
   const [region, setRegion] = useState('all');
   const [selectedCountry, setSelectedCountry] = useState<GlobePoint | null>(null);
   const [spreadMode, setSpreadMode] = useState(false);
   const [spreadPeriod, setSpreadPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [globeData, setGlobeData] = useState<GlobePoint[]>([]);
   const [spreadArcs, setSpreadArcs] = useState<SpreadArc[]>([]);
-  const [activeTab, setActiveTab] = useState<'surveillance' | 'classification' | 'genomics' | 'therapeutics'>('surveillance');
+  const [activeTab, setActiveTab] = useState<'surveillance' | 'classification' | 'genomics' | 'therapeutics' | 'ai-assistant'>('surveillance');
   const [heatmapMode, setHeatmapMode] = useState(false);
   const [countryDropdown, setCountryDropdown] = useState('');
   const [indiaMode, setIndiaMode] = useState(false);
-  const [indiaActiveTab, setIndiaActiveTab] = useState<'surveillance' | 'classification' | 'genomics' | 'therapeutics'>('surveillance');
+  const [indiaActiveTab, setIndiaActiveTab] = useState<'surveillance' | 'classification' | 'genomics' | 'therapeutics' | 'ai-assistant'>('surveillance');
   const [indiaStateDropdown, setIndiaStateDropdown] = useState('');
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lng: number; altitude: number } | null>(null);
 
@@ -430,7 +449,16 @@ export default function Home() {
     { key: 'classification',  label: 'Classification',  icon: '🔬' },
     { key: 'genomics',        label: 'Genomics',        icon: '🧬' },
     { key: 'therapeutics',    label: 'Therapeutics',    icon: '💊' },
+    { key: 'ai-assistant',    label: 'AI Chatbot',      icon: '🤖' },
   ];
+
+  const handleCosmoAction = useCallback((action: { disease?: string; country?: string }) => {
+    if (action.disease) setDisease(action.disease as import('@/lib/disease-data').DiseaseKey);
+    if (action.country) {
+      const pt = globeData.find(p => p.country === action.country);
+      if (pt) { setSelectedCountry(pt); setCountryDropdown(pt.country); setActiveTab('surveillance'); setIndiaMode(false); }
+    }
+  }, [globeData]);
 
   const sortedCountries = useMemo(() =>
     [...globeData]
@@ -465,9 +493,9 @@ export default function Home() {
         {/* Disease pills */}
         <div style={{ display: 'flex', gap: '0.4rem' }}>
           {(Object.entries(DISEASE_META) as [DiseaseKey, typeof meta][]).map(([key, m]) => (
-            <button key={key} onClick={() => { setDisease(key); setSelectedCountry(null); setCountryDropdown(''); setIndiaMode(false); setIndiaStateDropdown(''); setFocusCoords(null); }}
-              style={{ padding: '4px 12px', borderRadius: 20, border: `1px solid ${disease === key ? m.color : 'rgba(255,255,255,0.08)'}`, background: disease === key ? `${m.color}20` : 'transparent', color: disease === key ? m.color : '#5a7898', fontSize: '0.65rem', fontWeight: 500, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.2s ease', fontFamily: 'Inter, sans-serif' }}>
-              {m.icon} {m.label}
+            <button key={key} onClick={() => { setDisease(key); setDiseaseSelected(true); setSelectedCountry(null); setCountryDropdown(''); setIndiaMode(false); setIndiaStateDropdown(''); setFocusCoords(null); }}
+              style={{ padding: '4px 12px', borderRadius: 20, border: `1px solid ${diseaseSelected && disease === key ? m.color : 'rgba(255,255,255,0.08)'}`, background: diseaseSelected && disease === key ? `${m.color}20` : 'transparent', color: diseaseSelected && disease === key ? m.color : '#5a7898', fontSize: '0.65rem', fontWeight: 500, letterSpacing: '0.06em', cursor: 'pointer', transition: 'all 0.2s ease', fontFamily: 'Inter, sans-serif' }}>
+              {m.label}
             </button>
           ))}
         </div>
@@ -583,7 +611,7 @@ export default function Home() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '0 0 6% 0', alignItems: 'center', background: 'linear-gradient(to top, rgba(20,6,0,0.7) 0%, transparent 55%)' }}>
                 <div style={{ fontSize: '0.6rem', letterSpacing: '0.36em', color: 'rgba(255,153,51,0.75)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                  🇮🇳 India State Mode — click a state to explore
+                  India State Mode — click a state to explore
                 </div>
                 <div style={{ fontSize: '0.65rem', color: '#6a4020', letterSpacing: '0.12em' }}>
                   {sortedIndiaStates.length} states · {formatNumber(sortedIndiaStates.reduce((s, p) => s + p.cases, 0))} cases
@@ -640,7 +668,7 @@ export default function Home() {
                   {TABS.map(tab => (
                     <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                       style={{ flex: 1, padding: '11px 4px', fontSize: '0.62rem', fontWeight: activeTab === tab.key ? 500 : 400, letterSpacing: '0.08em', textTransform: 'uppercase', border: 'none', background: 'none', color: activeTab === tab.key ? '#70c8ec' : '#3a5870', borderBottom: `2px solid ${activeTab === tab.key ? '#70c8ec' : 'transparent'}`, cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                      <span>{tab.icon}</span> {tab.label}
+                      {tab.label}
                     </button>
                   ))}
                 </div>
@@ -651,7 +679,6 @@ export default function Home() {
                 <>
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,90,140,0.12)', background: 'rgba(0,6,20,0.8)', padding: '0 1rem', height: 44 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: '1rem' }}>🇮🇳</span>
                       <div>
                         <div style={{ fontSize: '0.72rem', fontWeight: 500, color: '#d0eeff', letterSpacing: '0.06em' }}>India</div>
                         <div style={{ fontSize: '0.55rem', color: '#4a6a82', letterSpacing: '0.15em', textTransform: 'uppercase' }}>National Overview · Select a state to drill down</div>
@@ -667,10 +694,11 @@ export default function Home() {
                       { key: 'classification', label: 'Classification', icon: '🔬' },
                       { key: 'genomics',       label: 'Genomics',       icon: '🧬' },
                       { key: 'therapeutics',   label: 'Therapeutics',   icon: '💊' },
+                      { key: 'ai-assistant',   label: 'AI Chatbot',     icon: '🤖' },
                     ] as { key: typeof indiaActiveTab; label: string; icon: string }[]).map(tab => (
                       <button key={tab.key} onClick={() => setIndiaActiveTab(tab.key)}
                         style={{ flex: 1, padding: '11px 4px', fontSize: '0.62rem', fontWeight: indiaActiveTab === tab.key ? 500 : 400, letterSpacing: '0.08em', textTransform: 'uppercase', border: 'none', background: 'none', color: indiaActiveTab === tab.key ? '#70c8ec' : '#3a5870', borderBottom: `2px solid ${indiaActiveTab === tab.key ? '#70c8ec' : 'transparent'}`, cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        <span>{tab.icon}</span> {tab.label}
+                        {tab.label}
                       </button>
                     ))}
                   </div>
@@ -686,6 +714,7 @@ export default function Home() {
                       disease={disease}
                       activeTab={activeTab}
                       region={region}
+                      onCosmoAction={handleCosmoAction}
                     />
                   </div>
                 ) : indiaMode ? (
@@ -695,6 +724,7 @@ export default function Home() {
                     meta={meta}
                     onStateSelect={handleStateSelect}
                     activeTab={indiaActiveTab}
+                    onCosmoAction={handleCosmoAction}
                   />
                 ) : null}
               </div>

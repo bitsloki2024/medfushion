@@ -40,7 +40,6 @@ export function DiseaseSelector({
               }`}
               style={disease === key ? { background: meta.color, borderColor: meta.color } : {}}
             >
-              <div className="text-sm leading-none mb-0.5">{meta.icon}</div>
               <div className="leading-none truncate">{key === 'covid' ? 'COVID' : key === 'tb' ? 'TB' : meta.label.split(' ')[0]}</div>
             </motion.button>
           ))}
@@ -72,7 +71,7 @@ export function DiseaseSelector({
           exit={{ opacity: 0, height: 0 }}
         >
           <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1.5">
-            🇮🇳 India — State / UT
+            India — State / UT
           </label>
           <select
             value={selectedState}

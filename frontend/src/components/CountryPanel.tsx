@@ -15,12 +15,14 @@ import { isolationForest, prophetForecast, computeOutbreakRisk, linearRegression
 import { formatNumber } from '@/lib/utils';
 import { TrendChart } from './TrendChart';
 import { ForecastChart } from './ForecastChart';
+import CosmoTab from './CosmoTab';
 
 interface Props {
   country: GlobePoint;
   disease: DiseaseKey;
-  activeTab: 'surveillance' | 'classification' | 'genomics' | 'therapeutics';
+  activeTab: 'surveillance' | 'classification' | 'genomics' | 'therapeutics' | 'ai-assistant';
   region: string;
+  onCosmoAction?: (action: { disease?: string; country?: string }) => void;
 }
 
 // ── Shared Styles ────────────────────────────────────────────────────────────
@@ -372,7 +374,7 @@ function ProjectedSpreadSection({ country, trendData, region, days, intFactor = 
   return (
     <div style={S.card}>
       <span style={S.label}>
-        {country.region === 'India' ? '🇮🇳 State-Level ' : ''}Projected Spread · {days}-Day Simulation
+        {country.region === 'India' ? 'State-Level ' : ''}Projected Spread · {days}-Day Simulation
       </span>
 
       <ResponsiveContainer width="99%" height={172}>
@@ -414,7 +416,7 @@ function ProjectedSpreadSection({ country, trendData, region, days, intFactor = 
   );
 }
 
-const BACKEND = 'http://localhost:8000';
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // ── Backend stats shape returned for India states ──────────────────────────────
 interface BackendTrendPoint { year: number; cases: number; deaths: number; is_anomaly: boolean }
@@ -431,7 +433,7 @@ interface BackendStats {
 }
 
 // ── Main CountryPanel ─────────────────────────────────────────────────────────
-export function CountryPanel({ country, disease, activeTab, region }: Props) {
+export function CountryPanel({ country, disease, activeTab, region, onCosmoAction }: Props) {
   const meta           = DISEASE_META[disease];
   const classification = DISEASE_CLASSIFICATION[disease];
   const genes          = DISEASE_GENES[disease];
@@ -522,11 +524,10 @@ export function CountryPanel({ country, disease, activeTab, region }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '1.2rem', fontWeight: 500, color: '#f0f8ff', fontFamily: 'Inter,sans-serif', letterSpacing: '-0.01em' }}>
-              {isIndiaState && <span style={{ fontSize: '0.9rem', marginRight: 6 }}>🇮🇳</span>}
               {country.country}
               {isIndiaState && <span style={{ fontSize: '0.62rem', color: '#8a6040', marginLeft: 8, fontWeight: 400 }}>State</span>}
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#5a7a98', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>{meta.icon} {meta.label} · Pop {formatNumber(country.population)}</div>
+            <div style={{ fontSize: '0.72rem', color: '#5a7a98', marginTop: 4, fontFamily: 'Inter,sans-serif' }}>{meta.label} · Pop {formatNumber(country.population)}</div>
           </div>
           <div style={{ padding: '5px 12px', background: `${riskColor}18`, border: `1px solid ${riskColor}40`, borderRadius: 6, fontSize: '0.75rem', color: riskColor, fontWeight: 600 }}>{riskScore}/100</div>
         </div>
@@ -584,7 +585,7 @@ export function CountryPanel({ country, disease, activeTab, region }: Props) {
             <span style={S.label}>Historical Trend — Anomaly Detection</span>
             {isIndiaState && backendStats && (
               <span style={{ fontSize: '0.52rem', color: '#4a8060', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 4, padding: '2px 6px' }}>
-                🇮🇳 {backendStats.source || 'India Official Data'}
+                {backendStats.source || 'India Official Data'}
               </span>
             )}
           </div>
@@ -664,7 +665,7 @@ export function CountryPanel({ country, disease, activeTab, region }: Props) {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: '0.55rem', color: '#1e3040' }}>
-          {isIndiaState ? `🇮🇳 ${country.country} State` : region !== 'all' ? `Region: ${region}` : 'Global view'}
+          {isIndiaState ? `${country.country} State` : region !== 'all' ? `Region: ${region}` : 'Global view'}
         </span>
       </div>
 
@@ -868,6 +869,14 @@ export function CountryPanel({ country, disease, activeTab, region }: Props) {
     classification: <ClassificationTab />,
     genomics:       <GenomicsTab />,
     therapeutics:   <TherapeuticsTab />,
+    'ai-assistant': <CosmoTab
+      country={country.country}
+      disease={disease}
+      cases={country.cases}
+      riskScore={country.risk_score}
+      region={region}
+      onAction={onCosmoAction ?? (() => {})}
+    />,
   };
 
   return (

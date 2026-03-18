@@ -433,7 +433,7 @@ export function buildSpreadArcs(disease: DiseaseKey, focusCountry?: string, peri
 }
 
 // ─── Live backend globe data fetcher ──────────────────────────────────────────
-const BACKEND = 'http://localhost:8000';
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function fetchGlobeData(disease: DiseaseKey, region?: string): Promise<GlobePoint[]> {
   try {
